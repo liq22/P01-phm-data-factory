@@ -1,0 +1,11 @@
+__pycache__/
+*.py[cod]
+.pytest_cache/
+build/
+dist/
+*.egg-info/
+.venv/
+.uv-cache/
+
+# 机器本地真实配置（拷贝自 config/phm-data.sample.yaml）
+config/phm-data.yaml

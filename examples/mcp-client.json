@@ -1,0 +1,1 @@
+{"mcpServers":{"phm-data":{"command":"/absolute/path/to/venv/bin/phm-data-mcp","args":["--config","/absolute/path/phm-data.local.yaml"]}}}

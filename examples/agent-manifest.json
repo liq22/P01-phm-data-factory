@@ -1,0 +1,15 @@
+{
+  "name": "phm-data-factory",
+  "version": "0.1.0",
+  "transport": "MCP stdio by default",
+  "mutating_tools_exposed": false,
+  "tools": [
+    {"name": "repository_summary", "purpose": "Inspect repository coverage and task counts"},
+    {"name": "list_datasets", "purpose": "List dataset IDs, names, and sample counts"},
+    {"name": "search_samples", "purpose": "Exact structured metadata search"},
+    {"name": "get_sample_metadata", "purpose": "Inspect labels, domain, rate, length, and channel count"},
+    {"name": "get_signal_statistics", "purpose": "Read bounded per-channel statistics"},
+    {"name": "get_signal_window", "purpose": "Read bounded/downsampled waveform previews"},
+    {"name": "validate_sample", "purpose": "Check metadata against stored signal shape"}
+  ]
+}

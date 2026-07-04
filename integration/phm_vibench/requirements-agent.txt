@@ -1,0 +1,1 @@
+-e ./packages/phm-data-factory[yaml,agent,legacy]

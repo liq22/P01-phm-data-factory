@@ -1,0 +1,19 @@
+# phm-data-factory 运行时配置模板。
+# 拷贝为 config/phm-data.yaml（该文件已 gitignore）后填入真实路径。
+
+backend: local  # 或 iotdb（导入完成后切换）
+
+# local 后端必填；iotdb 后端可省（省略即纯 IoTDB，保留则 metadata 走文件）
+metadata_path: /abs/path/to/metadata.xlsx
+signal_path: /abs/path/to/signals_dir
+
+default_max_points: 4096
+
+iotdb:  # import 与 iotdb 查询共用
+  host: 127.0.0.1
+  port: 6667
+  user: root
+  password: root
+  root: root.vibench
+  fetch_size: 5000
+  zone_id: UTC

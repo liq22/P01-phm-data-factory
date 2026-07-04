@@ -1,0 +1,187 @@
+diff --git a/docs/phm_data_factory.md b/docs/phm_data_factory.md
+new file mode 100644
+index 0000000..f8a6091
+--- /dev/null
++++ b/docs/phm_data_factory.md
+@@ -0,0 +1,38 @@
++# Standalone PHM data access
++
++PHM-Vibench keeps the existing training contract. The optional
++`packages/phm-data-factory` package exposes the same metadata and HDF5 caches to
++scripts and local agents without importing PyTorch, task datasets, samplers, or
++trainers.
++
++## Install
++
++```bash
++pip install -e 'packages/phm-data-factory[excel,yaml,agent,iotdb]'
++```
++
++## Use the existing data config
++
++```python
++from src.data_factory import build_agent_data_tools
++
++with build_agent_data_tools(args.data) as tools:
++    print(tools.repository_summary())
++    print(tools.get_sample_metadata("1"))
++```
++
++The bridge resolves `data.data_dir`, `data.metadata_file`, and `cache.h5`. If
++the consolidated cache does not yet exist, it reads `<Name>.h5` files from the
++data directory.
++
++## Run a local MCP server
++
++Create a standalone config that points at the same metadata/cache paths, then:
++
++```bash
++phm-data-mcp --config /absolute/path/phm-data.local.yaml
++```
++
++The Agent surface is read-only and returns bounded waveform previews. Training
++code should use the Python repository directly with `max_points=None` when it
++needs complete tensors.
+diff --git a/requirements-agent.txt b/requirements-agent.txt
+new file mode 100644
+index 0000000..6b8956f
+--- /dev/null
++++ b/requirements-agent.txt
+@@ -0,0 +1 @@
++-e ./packages/phm-data-factory[excel,yaml,agent,iotdb]
+diff --git a/src/data_factory/__init__.py b/src/data_factory/__init__.py
+index 9785b8d..4beac82 100644
+--- a/src/data_factory/__init__.py
++++ b/src/data_factory/__init__.py
+@@ -9,6 +9,7 @@ from .data_factory import (
+ )
+ from .dataset_task.Dataset_cluster import IdIncludedDataset
+ from .id_data_factory import id_data_factory
++from .standalone import build_agent_data_tools, build_data_repository
+ 
+ 
+ def resolve_data_factory_class(name: str):
+@@ -56,6 +57,8 @@ def build_data(args_data: Any, args_task: Any) -> Any:
+ # public exports
+ __all__ = [
+     "build_data",
++    "build_data_repository",
++    "build_agent_data_tools",
+     "resolve_data_factory_class",
+     "register_data_factory",
+     "DATA_FACTORY_REGISTRY",
+diff --git a/src/data_factory/standalone.py b/src/data_factory/standalone.py
+new file mode 100644
+index 0000000..aebcc0e
+--- /dev/null
++++ b/src/data_factory/standalone.py
+@@ -0,0 +1,75 @@
++"""Optional bridge from PHM-Vibench configs to ``phm-data-factory``.
++
++This module does not participate in the benchmark training pipeline. It only
++constructs the standalone repository and read-only Agent tool surface from the
++existing ``data`` config block.
++"""
++
++from __future__ import annotations
++
++import sys
++from pathlib import Path
++from typing import Any
++
++
++def _load_api():
++    try:
++        from phm_data_factory import AgentDataTools, PHMDataRepository
++    except ModuleNotFoundError:
++        # Source-checkout fallback. Normal installations should use
++        # ``pip install -e packages/phm-data-factory`` instead.
++        repo_root = Path(__file__).resolve().parents[2]
++        package_src = repo_root / "packages" / "phm-data-factory" / "src"
++        if not package_src.exists():
++            raise ModuleNotFoundError(
++                "phm-data-factory is not installed and the monorepo package "
++                f"was not found at {package_src}"
++            )
++        sys.path.insert(0, str(package_src))
++        from phm_data_factory import AgentDataTools, PHMDataRepository
++    return AgentDataTools, PHMDataRepository
++
++
++def _value(config: Any, name: str, default: Any = None) -> Any:
++    if isinstance(config, dict):
++        return config.get(name, default)
++    return getattr(config, name, default)
++
++
++def _resolve_under_data_dir(data_dir: Path, value: str | Path) -> Path:
++    path = Path(value).expanduser()
++    return path.resolve() if path.is_absolute() else (data_dir / path).resolve()
++
++
++def build_data_repository(args_data: Any, signal_path: str | Path | None = None):
++    """Create the standalone repository from PHM-Vibench's data config.
++
++    The caller owns the returned repository and must call ``close()`` or use it
++    as a context manager.
++    """
++    _, repository_cls = _load_api()
++    data_dir = Path(_value(args_data, "data_dir", "data")).expanduser().resolve()
++    metadata_file = _value(args_data, "metadata_file", "metadata.xlsx")
++    metadata_path = _resolve_under_data_dir(data_dir, metadata_file)
++
++    configured_signal = signal_path or _value(args_data, "agent_signal_path")
++    if configured_signal:
++        signals = _resolve_under_data_dir(data_dir, configured_signal)
++    else:
++        cache = data_dir / "cache.h5"
++        signals = cache if cache.exists() else data_dir
++    return repository_cls.from_local(metadata_path, signals)
++
++
++def build_agent_data_tools(
++    args_data: Any,
++    signal_path: str | Path | None = None,
++    default_max_points: int | None = None,
++):
++    """Create bounded, read-only Agent tools from the existing data config."""
++    tools_cls, _ = _load_api()
++    repository = build_data_repository(args_data, signal_path=signal_path)
++    max_points = default_max_points
++    if max_points is None:
++        max_points = int(_value(args_data, "agent_max_points", 4096))
++    return tools_cls(repository, default_max_points=max_points)
+diff --git a/test/test_standalone_data_factory.py b/test/test_standalone_data_factory.py
+new file mode 100644
+index 0000000..19ee20a
+--- /dev/null
++++ b/test/test_standalone_data_factory.py
+@@ -0,0 +1,28 @@
++from __future__ import annotations
++
++from pathlib import Path
++from types import SimpleNamespace
++
++import h5py
++import numpy as np
++import pandas as pd
++
++from src.data_factory.standalone import build_agent_data_tools, build_data_repository
++
++
++def test_standalone_bridge_uses_existing_data_config(tmp_path: Path):
++    pd.DataFrame(
++        [{"Id": 1, "Name": "RM_001_CWRU", "Sample_lenth": 4, "Channel": 2}]
++    ).to_csv(tmp_path / "metadata.csv", index=False)
++    with h5py.File(tmp_path / "cache.h5", "w") as handle:
++        handle.create_dataset("1", data=np.ones((4, 2)))
++
++    args_data = SimpleNamespace(
++        data_dir=str(tmp_path),
++        metadata_file="metadata.csv",
++        agent_max_points=2,
++    )
++    with build_data_repository(args_data) as repository:
++        assert repository.validate_sample(1)["valid"] is True
++    with build_agent_data_tools(args_data) as tools:
++        assert tools.get_signal_window("1")["shape"] == [2, 2]

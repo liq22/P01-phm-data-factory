@@ -1,0 +1,4 @@
+backend: local
+metadata_path: ../data/metadata.xlsx
+signal_path: ../data
+default_max_points: 4096

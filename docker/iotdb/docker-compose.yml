@@ -1,0 +1,9 @@
+services:
+  iotdb:
+    image: ${IOTDB_IMAGE:-apache/iotdb:2.0.8-standalone}
+    container_name: phm-iotdb
+    restart: unless-stopped
+    ports: ["${IOTDB_PORT:-6667}:6667"]
+    volumes:
+      - ./data:/iotdb/data
+      - ./logs:/iotdb/logs

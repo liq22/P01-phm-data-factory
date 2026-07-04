@@ -1,0 +1,156 @@
+# phm-data-factory 中文快速开始
+
+## 目标边界
+
+```text
+phm-data-factory
+  ├── IoTDB 元数据与信号读取
+  ├── 旧 metadata.xlsx / CSV + HDF5 一次性导入
+  ├── JSON CLI
+  └── 只读 MCP Agent 工具
+
+PHM-Vibench
+  ├── task dataset
+  ├── train/val/test split
+  ├── sampler / DataLoader
+  ├── model / trainer
+  └── benchmark protocol
+```
+
+独立包只负责“数据访问”。运行时主线是 IoTDB，Agent/CLI/MCP 查询不再依赖本地 `metadata.xlsx` 或 HDF5 cache；旧文件链路只用于迁移导入。
+
+## 安装
+
+开发安装：
+
+```bash
+pip install -e .
+pip install -e '.[yaml,agent]'
+```
+
+只有需要把旧 `metadata.xlsx/CSV + HDF5` 导入 IoTDB 时，才安装 legacy extra：
+
+```bash
+pip install -e '.[legacy]'
+```
+
+## 启动或连接 IoTDB
+
+本仓库提供本地测试容器：
+
+```bash
+cd docker/iotdb
+docker compose up -d
+phm-data-iotdb check
+```
+
+默认连接参数：
+
+```yaml
+backend: iotdb
+default_max_points: 4096
+iotdb:
+  host: 127.0.0.1
+  port: 6667
+  user: root
+  password: root
+  root: root.vibench
+```
+
+也可以用环境变量覆盖：`IOTDB_HOST`、`IOTDB_PORT`、`IOTDB_USER`、`IOTDB_PASSWORD`、`IOTDB_ROOT`。
+
+## 查询数据
+
+```bash
+phm-data --root root.vibench summary
+phm-data --root root.vibench datasets
+phm-data --root root.vibench search --task fault --limit 10
+phm-data --root root.vibench metadata 1
+phm-data --root root.vibench window 1 \
+  --start 0 --end 12000 --channels 0,1 --max-points 1024
+```
+
+所有输出都是 JSON。`get_signal_window` / `window` 默认限流；若返回 `step > 1`，它是给 Agent 阅读的均匀预览，不是完整训练 tensor。
+
+Python 用法：
+
+```python
+from phm_data_factory import AgentDataTools, RepositoryConfig, build_repository
+
+config = RepositoryConfig.from_mapping(
+    {"backend": "iotdb", "iotdb": {"root": "root.vibench"}}
+)
+
+with build_repository(config) as repo:
+    tools = AgentDataTools(repo)
+    print(tools.repository_summary())
+```
+
+## 本地 Agent / MCP
+
+配置文件建议使用 `examples/phm-data.iotdb.yaml`：
+
+```bash
+phm-data-mcp --config /absolute/path/phm-data.iotdb.yaml
+```
+
+Agent 工具：
+
+```text
+repository_summary
+list_datasets
+search_samples
+get_sample_metadata
+get_signal_statistics
+get_signal_window
+validate_sample
+```
+
+## 迁移旧 metadata + HDF5
+
+旧本地文件只作为一次性导入源：
+
+```bash
+phm-data-iotdb import \
+  --metadata /data/metadata.xlsx \
+  --signals /data \
+  --root root.vibench \
+  --chunk-size 10000 \
+  --report import-report.json
+```
+
+`--signals` 可指向单个 `cache.h5`、单个数据集 HDF5，或包含 `<Name>.h5` 的目录。HDF5 key 支持 `1`、`Id_1`、`sample_1`。
+
+导入后的 IoTDB 路径：
+
+```text
+root.vibench.<dataset>.sample_<Id>.signal.ch_<channel>
+root.vibench.<dataset>.sample_<Id>.meta.<field>
+```
+
+迁移完成后，日常查询、MCP 和 Agent 只需要 IoTDB。
+
+## 接入 PHM-Vibench
+
+把 overlay ZIP 解压到 PHM-Vibench 根目录并保留路径，然后：
+
+```bash
+pip install -e 'packages/phm-data-factory[yaml,agent,legacy]'
+PYTHONPATH=. pytest -q packages/phm-data-factory/tests
+pytest -q test/test_standalone_data_factory.py
+```
+
+现有训练入口不变；新增入口：
+
+```python
+from src.data_factory import build_agent_data_tools, build_data_repository
+
+with build_agent_data_tools(args.data) as tools:
+    print(tools.repository_summary())
+```
+
+## 当前验证范围
+
+- 单元测试覆盖 legacy metadata/HDF5、IoTDB mock、CLI/config 和导入边界；
+- Wheel 构建命令：`python -m pip wheel --no-deps --no-build-isolation .`；
+- 当前环境未启动真实 IoTDB 容器，因此真实服务器 smoke test 需在有 Docker 的机器执行。

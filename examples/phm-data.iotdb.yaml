@@ -1,0 +1,8 @@
+backend: iotdb
+default_max_points: 4096
+iotdb:
+  host: 127.0.0.1
+  port: 6667
+  user: root
+  password: root
+  root: root.vibench
