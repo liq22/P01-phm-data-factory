@@ -72,3 +72,32 @@ def test_top_level_import_does_not_load_h5py():
     )
     result = subprocess.run([sys.executable, "-c", code], env=env, check=False)
     assert result.returncode == 0
+
+
+def test_env_config_present_only_triggers_on_phm_data_config(monkeypatch):
+    """Scattered IOTDB_* must NOT activate the env chain on the CLI (regression guard)."""
+    from phm_data_factory.config import env_config_present
+
+    monkeypatch.delenv("PHM_DATA_CONFIG", raising=False)
+    monkeypatch.setenv("IOTDB_HOST", "somewhere.example")
+    monkeypatch.setenv("IOTDB_PORT", "6667")
+    assert env_config_present() is False  # IOTDB_* alone must not trigger
+    monkeypatch.setenv("PHM_DATA_CONFIG", "x.yaml")
+    assert env_config_present() is True
+
+
+def test_cli_phm_data_config_env_drives_query(local_data, monkeypatch, tmp_path: Path, capsys):
+    """PHM_DATA_CONFIG (no --config, no CLI flags) drives the whole query."""
+    metadata, signals = local_data
+    cfg = tmp_path / "phm-data.yaml"
+    cfg.write_text(
+        "backend: local\n"
+        f"metadata_path: {metadata}\n"
+        f"signal_path: {signals}\n",
+        encoding="utf-8",
+    )
+    monkeypatch.setenv("PHM_DATA_CONFIG", str(cfg))
+    code = main(["summary"])
+    assert code == 0
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["samples"] == 2

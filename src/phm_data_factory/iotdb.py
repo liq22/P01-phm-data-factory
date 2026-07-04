@@ -465,13 +465,15 @@ def _imports():
 
 
 def _probe_socket(host: str, port: int, timeout: float = 5.0) -> bool:
-    """TCP reachability probe — runs without the apache-iotdb client installed."""
+    """TCP reachability probe — runs without the apache-iotdb client installed.
+
+    Uses create_connection so IPv6-only localhost (::1) is not missed.
+    """
     import socket
 
     try:
-        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
-            sock.settimeout(timeout)
-            return sock.connect_ex((host, port)) == 0
+        with socket.create_connection((host, port), timeout=timeout):
+            return True
     except OSError:
         return False
 
@@ -532,8 +534,14 @@ def main(argv: Sequence[str] | None = None) -> int:
                 "connected": False,
             }
             if rpc_open:
-                with IoTDBSession(config):
-                    result["connected"] = True
+                try:
+                    with IoTDBSession(config):
+                        result["connected"] = True
+                except Exception as exc:
+                    result["error"] = (
+                        f"RPC port open but session failed: "
+                        f"{type(exc).__name__}: {exc}"
+                    )
             else:
                 result["error"] = (
                     f"RPC port {config.port} not reachable — start IoTDB first "

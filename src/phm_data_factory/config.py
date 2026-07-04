@@ -81,25 +81,17 @@ class RepositoryConfig:
         return cls.from_mapping(mapping)
 
 
-_ENV_CONFIG_KEYS = (
-    "PHM_DATA_CONFIG",
-    "PHM_DATA_BACKEND",
-    "PHM_DATA_METADATA",
-    "PHM_DATA_SIGNALS",
-    "PHM_DATA_MAX_POINTS",
-    "IOTDB_HOST",
-    "IOTDB_PORT",
-    "IOTDB_USER",
-    "IOTDB_PASSWORD",
-    "IOTDB_ROOT",
-    "IOTDB_FETCH_SIZE",
-    "IOTDB_ZONE_ID",
-)
-
-
 def env_config_present() -> bool:
-    """True if any PHM_DATA_* / IOTDB_* env var is set (activates from_environment)."""
-    return any(os.getenv(k) for k in _ENV_CONFIG_KEYS)
+    """True if PHM_DATA_CONFIG points at a config file.
+
+    Only PHM_DATA_CONFIG triggers the env path on the CLI/MCP/import entries;
+    scattered PHM_DATA_*/IOTDB_* vars do NOT. This keeps the three entry points
+    symmetrical (--config > PHM_DATA_CONFIG > CLI args) and prevents a stray
+    IOTDB_HOST (set for import) from silently overriding --metadata/--signals
+    on `phm-data`. from_environment() still honors scattered env vars when
+    called directly from Python.
+    """
+    return bool(os.getenv("PHM_DATA_CONFIG"))
 
 
 def build_repository(config: RepositoryConfig) -> PHMDataRepository:

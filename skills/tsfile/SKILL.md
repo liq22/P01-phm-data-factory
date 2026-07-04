@@ -15,7 +15,7 @@ Choose your programming language to get started:
 ### Java
 
 ```java
-// Add Maven dependency (version 2.1.0)
+// Add Maven dependency (version 2.1.5)
 // See assets/pom.xml for complete setup
 
 // Write data
@@ -32,7 +32,7 @@ QueryDataSet result = reader.query(queryExpression);
 ### Python
 
 ```python
-# Requires C++ build: mvn -P with-cpp,with-python clean verify
+# Install: pip install tsfile (official wheel, no mvn build needed)
 
 from tsfile import TsFileTableWriter, TsFileReader, TableSchema
 
@@ -121,7 +121,7 @@ auto result = reader.read_table(table_name);
 
 ### Java Development
 
-- **Setup**: Use Maven with `org.apache.tsfile:tsfile:2.1.0` dependency
+- **Setup**: Use Maven with `org.apache.tsfile:tsfile:2.1.5` dependency
 - **Writing**: Prefer `Tablet` API for batch operations over `TSRecord`
 - **Reading**: Use `QueryExpression` for complex filtering
 - **Error Handling**: Catch `WriteProcessException` and `IOException`
@@ -129,7 +129,7 @@ auto result = reader.read_table(table_name);
 
 ### Python Integration
 
-- **Prerequisites**: Must build C++ version first
+- **Install**: `pip install tsfile` (official wheel on PyPI; no C++ build needed)
 - **API Style**: Pandas-like interface with DataFrames
 - **Context Managers**: Use `with` statements for automatic resource cleanup
 - **Data Types**: Automatic conversion between pandas and TsFile types

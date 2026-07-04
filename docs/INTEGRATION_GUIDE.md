@@ -13,10 +13,10 @@ phm-data / phm-data-mcp / phm-data-iotdb 三个入口共享同一套配置发现
 | 优先级 | 来源 | 说明 |
 |---|---|---|
 | 1 | `--config <path>` | 显式指定 RepositoryConfig 文件（YAML/JSON） |
-| 2 | 环境变量 | `PHM_DATA_CONFIG` 指向配置文件；或任意 `PHM_DATA_*` / `IOTDB_*` 单项 env（激活 `from_environment()`） |
-| 3 | CLI 参数默认值 | `--host/--port/--root/...` 的 argparse 默认（127.0.0.1:6667, root.vibench） |
+| 2 | `PHM_DATA_CONFIG` 环境变量 | 指向配置文件；命中即用文件配置（**压过 CLI flag，与 --config 同级语义**） |
+| 3 | CLI 参数 | `--host/--port/--root/--metadata/--signals/...`（默认或显式传入） |
 
-> 即：写一份 `config/phm-data.yaml`，设 `PHM_DATA_CONFIG` 指向它，三个入口就都能零额外参数运行。
+> 三个入口（`phm-data` / `phm-data-mcp` / `phm-data-iotdb`）共享此链。**注意**：散落的 `IOTDB_*` / `PHM_DATA_BACKEND` 等单项 env **不会**触发此链——只有 `--config` 与 `PHM_DATA_CONFIG` 会。这样设 `IOTDB_HOST`（为 import）不会让 `phm-data --metadata x` 静默丢弃 `--metadata`。散落 env 仅当 Python 直接调用 `RepositoryConfig.from_environment()` 时生效。
 
 ---
 
@@ -30,7 +30,14 @@ phm-data-iotdb check --config config/phm-data.yaml
 ```
 
 成功输出：`{"host": "127.0.0.1", "port": 6667, "rpc_port_open": true, "connected": true}`，返回码 0。
-端口不通时 `connected: false` 并给出启动提示，返回码 3。
+
+| 返回码 | 含义 |
+|---|---|
+| 0 | 连通（RPC 端口开 + Session 登录成功） |
+| 2 | 异常（如 import 校验失败、未捕获错误） |
+| 3 | check 未连通：RPC 端口不通，或端口开但 Session 失败；JSON 额外含 `error` 字段 |
+
+程序化判定：`phm-data-iotdb check || echo "IoTDB 未就绪"`。
 
 更深入的自检（REST/Java/并发维度，可选）：
 
