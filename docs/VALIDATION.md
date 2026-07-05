@@ -30,9 +30,6 @@ machine with Docker:
 ```bash
 ./scripts/start_iotdb.sh
 phm-data-iotdb check
-phm-data-iotdb import \
-  --metadata /absolute/path/metadata.xlsx \
-  --signals /absolute/path/data \
-  --sample-id 1 \
-  --report /tmp/iotdb-smoke.json
+phm-data-iotdb import --config config/phm-data.yaml \
+  --sample-id 1 --report /tmp/iotdb-smoke.json
 ```

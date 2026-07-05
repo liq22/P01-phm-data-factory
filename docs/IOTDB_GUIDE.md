@@ -108,6 +108,23 @@ phm-data-iotdb check
 
 ---
 
+### 2.2.1 备选：WSL2 直跑 IoTDB 二进制（绕过 docker-proxy）
+
+若 Docker Desktop 未开 mirrored networking，host Python 经 docker-proxy 连接会报 `TSocket read 0 bytes`（请求到 server 但响应回不来；容器内 cli 正常）。解：WSL2 distro 内直跑 IoTDB 二进制。
+
+```bash
+# Java 11+ 前置（Ubuntu: sudo apt install openjdk-21-jdk）
+curl -fL -o iotdb.zip https://archive.apache.org/dist/iotdb/2.0.8/apache-iotdb-2.0.8-all-bin.zip
+unzip -q iotdb.zip
+export IOTDB_HOME=$(pwd)/apache-iotdb-2.0.8-all-bin
+"$IOTDB_HOME/sbin/start-standalone.sh"     # 同机启 ConfigNode + DataNode，~50s ready
+phm-data-iotdb check                         # 127.0.0.1:6667 直达，connected:true
+```
+
+也可让 docker 路径 work：Docker Desktop → Settings → General → 勾 **"Use mirrored networking mode"**（不是 "Enable host networking"）。
+
+---
+
 ### 2.3 导入 PHM 数据
 
 #### 步骤 5: 准备数据
@@ -117,27 +134,23 @@ phm-data-iotdb check
 
 #### 步骤 6: 执行导入
 ```bash
-phm-data-iotdb import \
-  --metadata /path/to/metadata.xlsx \
-  --signals /path/to/signals/directory \
-  --root root.vibench \
-  --chunk-size 10000 \
-  --report import-report.json
+phm-data-iotdb import --config config/phm-data.yaml --report import-report.json
+# --metadata/--signals 可选：未传时从 config 读
+# --sample-id <id> 试导单样本；--chunk-size 控制批次；--continue-on-error 全量容错
 ```
 
 参数说明：
-- `--metadata`: 元数据文件路径
-- `--signals`: 信号数据目录
-- `--root`: IoTDB 根路径（默认 root.vibench）
-- `--chunk-size`: 批量写入大小
+- `--config`: RepositoryConfig 文件（含 metadata_path/signal_path/iotdb 连接，推荐方式）
+- `--metadata`/`--signals`: 可选，覆盖 config 的路径
+- `--chunk-size`: 批量写入大小（默认 10000）
 - `--report`: 生成导入报告，报告内包含 `data_manifest`
 
 #### 步骤 7: 验证导入结果
 ```bash
-phm-data --root root.vibench summary
-phm-data --root root.vibench datasets
-phm-data --root root.vibench metadata 1
-phm-data --root root.vibench window 1 --start 0 --end 1024 --max-points 128
+phm-data --config examples/phm-data.iotdb.yaml summary
+phm-data --config examples/phm-data.iotdb.yaml datasets
+phm-data --config examples/phm-data.iotdb.yaml metadata 1
+phm-data --config examples/phm-data.iotdb.yaml window 1 --start 0 --end 1024 --max-points 128
 ```
 
 导入报告中的 `data_manifest` 可作为论文证据链的一部分，记录：
@@ -166,23 +179,23 @@ PHM_IOTDB_LIVE=1 pytest -q tests/test_iotdb_live.py
 #### CLI 使用示例
 ```bash
 # 查看仓库概览
-phm-data --root root.vibench summary
+phm-data --config examples/phm-data.iotdb.yaml summary
 
 # 列出所有数据集
-phm-data --root root.vibench datasets
+phm-data --config examples/phm-data.iotdb.yaml datasets
 
 # 搜索样本
-phm-data --root root.vibench search --filter name=CWRU --limit 5
+phm-data --config examples/phm-data.iotdb.yaml search --filter name=CWRU --limit 5
 
 # 获取样本元数据
-phm-data --root root.vibench metadata 1
+phm-data --config examples/phm-data.iotdb.yaml metadata 1
 
 # 获取信号窗口
-phm-data --root root.vibench window 1 \
+phm-data --config examples/phm-data.iotdb.yaml window 1 \
   --channels 0,1,2 --start 0 --end 1000 --max-points 256
 
 # 信号统计
-phm-data --root root.vibench stats 1 --channels 0,1,2
+phm-data --config examples/phm-data.iotdb.yaml stats 1 --channels 0,1,2
 ```
 
 #### Python API 使用示例
@@ -273,7 +286,7 @@ docker compose restart
 ls -la /path/to/signals/
 
 # 使用 --chunk-size 参数减少批次大小
-phm-data-iotdb import --chunk-size 5000 ...
+phm-data-iotdb import --config config/phm-data.yaml --chunk-size 5000 ...
 ```
 
 ---

@@ -62,11 +62,11 @@ iotdb:
 ## 查询数据
 
 ```bash
-phm-data --root root.vibench summary
-phm-data --root root.vibench datasets
-phm-data --root root.vibench search --task fault --limit 10
-phm-data --root root.vibench metadata 1
-phm-data --root root.vibench window 1 \
+phm-data --config examples/phm-data.iotdb.yaml summary
+phm-data --config examples/phm-data.iotdb.yaml datasets
+phm-data --config examples/phm-data.iotdb.yaml search --task fault --limit 10
+phm-data --config examples/phm-data.iotdb.yaml metadata 1
+phm-data --config examples/phm-data.iotdb.yaml window 1 \
   --start 0 --end 12000 --channels 0,1 --max-points 1024
 ```
 
@@ -111,12 +111,10 @@ validate_sample
 旧本地文件只作为一次性导入源：
 
 ```bash
-phm-data-iotdb import \
-  --metadata /data/metadata.xlsx \
-  --signals /data \
-  --root root.vibench \
-  --chunk-size 10000 \
-  --report import-report.json
+phm-data-iotdb import --config config/phm-data.yaml --report import-report.json
+# --metadata/--signals 可选：未传时从 config 的 metadata_path/signal_path 读
+# （config/phm-data.yaml 从 config/phm-data.sample.yaml 拷贝并填路径）
+# --sample-id <id> 试导单样本；--chunk-size 控制批次
 ```
 
 `--signals` 可指向单个 `cache.h5`、单个数据集 HDF5，或包含 `<Name>.h5` 的目录。HDF5 key 支持 `1`、`Id_1`、`sample_1`。
