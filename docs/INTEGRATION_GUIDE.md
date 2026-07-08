@@ -159,6 +159,8 @@ skills 是**知识包 + 自检工具**，不是 data-factory 的可执行数据�
 
 ## 相关文档
 - [QUICKSTART_ZH.md](QUICKSTART_ZH.md) — 快速开始
+- [BENCHMARK_INTEGRATION.md](BENCHMARK_INTEGRATION.md) — benchmark 接入与工业场景优化
 - [IOTDB_GUIDE.md](IOTDB_GUIDE.md) — IoTDB 启动与四阶段验收
 - [PHMBENCH_INTEGRATION.md](PHMBENCH_INTEGRATION.md) — PHM-Vibench overlay 集成契约
 - [GOAL.md](GOAL.md) — 项目目标与边界
+- [../examples/README.md](../examples/README.md) — 配置、MCP、notebook 示例导航

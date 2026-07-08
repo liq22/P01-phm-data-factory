@@ -1,7 +1,7 @@
 # phm-data-factory
 
 > 配置三入口：`--config <path>` ≡ `PHM_DATA_CONFIG=<path>` > CLI args（散落 `IOTDB_*` **不**入此链）
-> 中文文档：[快速开始](docs/QUICKSTART_ZH.md) · [接入指南](docs/INTEGRATION_GUIDE.md) · [IoTDB 指南](docs/IOTDB_GUIDE.md)
+> 中文入口：[快速开始](docs/QUICKSTART_ZH.md) · [接入指南](docs/INTEGRATION_GUIDE.md) · [示例](examples/README.md) · [IoTDB 指南](docs/IOTDB_GUIDE.md)
 
 从 PHM-Vibench 抽取的独立、只读优先的 PHM 数据层。运行时主线是 Apache IoTDB：CLI、Python、MCP 工具查询同一棵 IoTDB 树，Agent 进程内不再依赖本地 `metadata.xlsx` 或 HDF5 缓存。
 
@@ -11,6 +11,17 @@
 PHM-Vibench 保留：数据集切分、PyTorch Dataset/DataLoader、任务策略、模型、训练器。
 
 Legacy `metadata.xlsx/CSV + HDF5` 仅用于一次性迁移进 IoTDB。
+
+## 我该看哪个入口
+
+| 目标 | 入口 |
+|---|---|
+| 10 分钟跑通 | [docs/QUICKSTART_ZH.md](docs/QUICKSTART_ZH.md) |
+| 配置、导入、MCP、故障排查 | [docs/INTEGRATION_GUIDE.md](docs/INTEGRATION_GUIDE.md) |
+| Python 读写 IoTDB 示例 | [examples/iotdb_python_read_write.ipynb](examples/iotdb_python_read_write.ipynb) |
+| benchmark 接入与工业优化 | [docs/BENCHMARK_INTEGRATION.md](docs/BENCHMARK_INTEGRATION.md) |
+| IoTDB 启动与验收 | [docs/IOTDB_GUIDE.md](docs/IOTDB_GUIDE.md) |
+| PHM-Vibench overlay | [docs/PHMBENCH_INTEGRATION.md](docs/PHMBENCH_INTEGRATION.md) |
 
 ## 安装
 
@@ -144,6 +155,7 @@ Client 配置（Claude Desktop / Cursor 等 MCP client）：
 |---|---|
 | [QUICKSTART_ZH.md](docs/QUICKSTART_ZH.md) | 中文 10 分钟上手 |
 | [INTEGRATION_GUIDE.md](docs/INTEGRATION_GUIDE.md) | **接入主指南**：配置链、import、tsfile 结论、R00 接入、故障排查 |
+| [BENCHMARK_INTEGRATION.md](docs/BENCHMARK_INTEGRATION.md) | **benchmark 接入 + 工业优化**：8 环节+缺口、Python 3 姿态、在线/离线瓶颈与优化 |
 | [IOTDB_GUIDE.md](docs/IOTDB_GUIDE.md) | IoTDB 启动（docker / WSL2 直跑）+ 四阶段验收 |
 | [ARCHITECTURE.md](docs/ARCHITECTURE.md) | 数据流架构 |
 | [GOAL.md](docs/GOAL.md) | 项目目标与边界 |
@@ -151,6 +163,8 @@ Client 配置（Claude Desktop / Cursor 等 MCP client）：
 | [VALIDATION.md](docs/VALIDATION.md) | 版本验证范围 |
 
 配置模板：[config/phm-data.sample.yaml](config/phm-data.sample.yaml) · [examples/phm-data.iotdb.yaml](examples/phm-data.iotdb.yaml) · [examples/phm-data.local.yaml](examples/phm-data.local.yaml)
+
+示例导航：[examples/README.md](examples/README.md)
 
 ## 测试与构建
 

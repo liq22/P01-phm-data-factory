@@ -6,6 +6,13 @@ dist/
 *.egg-info/
 .venv/
 .uv-cache/
+.ipynb_checkpoints/
+
+# 构建/交付产物不进入源码仓库；需要发布时重新生成。
+doc/
+*.whl
+*.zip
+*.tar.gz
 
 # 机器本地真实配置（拷贝自 config/phm-data.sample.yaml）
 config/phm-data.yaml
