@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 from typing import Any, Mapping, Sequence
+
+from .contract import agent_contract_manifest
 from .repository import PHMDataRepository
 
 
@@ -95,17 +97,6 @@ class AgentDataTools:
 
     @staticmethod
     def manifest():
-        return {
-            "name": "phm-data-factory",
-            "version": "0.1.0",
-            "read_only": True,
-            "tools": [
-                "repository_summary",
-                "list_datasets",
-                "search_samples",
-                "get_sample_metadata",
-                "get_signal_window",
-                "get_signal_statistics",
-                "validate_sample",
-            ],
-        }
+        """Return the versioned, read-only consumer contract manifest."""
+
+        return agent_contract_manifest()
