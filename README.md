@@ -1,6 +1,6 @@
 # phm-data-factory
 
-> 配置三入口：`--config <path>` ≡ `PHM_DATA_CONFIG=<path>` > CLI args（散落 `IOTDB_*` **不**入此链）
+> 配置三入口：`--config <path>` > `PHM_DATA_CONFIG=<path>` > CLI args（散落 `IOTDB_*` **不**入此链）
 > 中文入口：[快速开始](docs/QUICKSTART_ZH.md) · [接入指南](docs/INTEGRATION_GUIDE.md) · [示例](examples/README.md) · [IoTDB 指南](docs/IOTDB_GUIDE.md)
 
 从 PHM-Vibench 抽取的独立、只读优先的 PHM 数据层。运行时主线是 Apache IoTDB：CLI、Python、MCP 工具查询同一棵 IoTDB 树，Agent 进程内不再依赖本地 `metadata.xlsx` 或 HDF5 缓存。
@@ -25,16 +25,22 @@ Legacy `metadata.xlsx/CSV + HDF5` 仅用于一次性迁移进 IoTDB。
 
 ## 安装
 
-```bash
-pip install -e '.[yaml,agent]'        # 主安装（YAML 配置 + MCP）
-pip install -e '.[legacy]'            # 仅迁移旧本地文件时
-```
+| 使用场景 | 命令 |
+|---|---|
+| IoTDB + YAML 配置 | `pip install -e '.[yaml]'` |
+| IoTDB + MCP Agent | `pip install -e '.[yaml,agent]'` |
+| 本地 metadata/HDF5 或迁移 | `pip install -e '.[yaml,legacy]'` |
+| 全部运行能力 | `pip install -e '.[all]'` |
+| 开发与测试 | `pip install -e '.[dev,agent]'` |
+
+> `local` 后端和旧数据迁移会读取 Excel/HDF5，必须安装 `legacy` extra；仅安装 `yaml,agent` 不包含 `h5py/openpyxl/xlrd`。
 
 ## 快速开始（两条路）
 
 ### 路 A：local 立即起步（数据已在本地）
 
 ```bash
+pip install -e '.[yaml,legacy]'
 cp config/phm-data.sample.yaml config/phm-data.yaml
 # 编辑 config/phm-data.yaml：填 metadata_path / signal_path（WSL2 用 /mnt/e/...，勿用 E:\）
 phm-data --config config/phm-data.yaml summary
@@ -60,7 +66,7 @@ phm-data --config config/phm-data.yaml datasets
 | 优先级 | 来源 | 说明 |
 |---|---|---|
 | 1 | `--config <path>` | 显式指定 RepositoryConfig 文件（YAML/JSON） |
-| 2 | `PHM_DATA_CONFIG` env | 指向配置文件（压过 CLI flag，与 `--config` 同级） |
+| 2 | `PHM_DATA_CONFIG` env | 仅在未给 `--config` 时读取该配置文件 |
 | 3 | CLI 参数 | `--host/--port/--metadata/--signals/...`（默认或显式） |
 
 > 散落 `IOTDB_*` / `PHM_DATA_BACKEND` 等单项 env **不入此链**——只有 `--config` 与 `PHM_DATA_CONFIG` 会。这样设 `IOTDB_HOST`（为 import）不会让 `phm-data --metadata x` 静默丢弃 `--metadata`。细节见 [接入指南](docs/INTEGRATION_GUIDE.md)。
@@ -169,6 +175,10 @@ Client 配置（Claude Desktop / Cursor 等 MCP client）：
 ## 测试与构建
 
 ```bash
+pip install -e '.[dev,agent]'
 pytest
+python -m compileall -q src scripts
 python -m pip wheel --no-deps --no-build-isolation .
 ```
+
+Pull request 与 `main` push 会通过 GitHub Actions 在 Python 3.10 和 3.13 上执行上述离线测试与构建；live IoTDB 验收仍需显式设置 `PHM_IOTDB_LIVE=1`。
