@@ -80,7 +80,7 @@ class RepositoryConfig:
     def from_environment(cls) -> "RepositoryConfig":
         if os.getenv("PHM_DATA_CONFIG"):
             return cls.from_file(os.environ["PHM_DATA_CONFIG"])
-        backend = os.getenv("PHM_DATA_BACKEND", "iotdb")
+        backend = os.getenv("PHM_DATA_BACKEND", "iotdb").lower()
         mapping: dict[str, Any] = {
             "backend": backend,
             "metadata_path": os.getenv("PHM_DATA_METADATA"),
