@@ -2,14 +2,18 @@
 
 from .agent import AgentDataTools
 from .config import RepositoryConfig, build_repository
+from .contract import API_SCHEMA_VERSION, PACKAGE_VERSION, agent_contract_manifest
 from .metadata import MetadataAccessor, MetadataCatalog, read_metadata, smart_read_csv
 from .models import SampleMetadata, SignalWindow
 from .repository import PHMDataRepository
 from .stores import SignalStore
 
-__version__ = "0.1.0"
+__version__ = PACKAGE_VERSION
 __all__ = [
     "AgentDataTools",
+    "API_SCHEMA_VERSION",
+    "PACKAGE_VERSION",
+    "agent_contract_manifest",
     "RepositoryConfig",
     "build_repository",
     "MetadataAccessor",
