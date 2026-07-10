@@ -175,6 +175,7 @@ Client 配置（Claude Desktop / Cursor 等 MCP client）：
 ## 测试与构建
 
 ```bash
+python -m pip install --upgrade pip setuptools wheel
 pip install -e '.[dev,agent]'
 pytest
 python -m compileall -q src scripts
