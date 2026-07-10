@@ -1,15 +1,38 @@
 {
+  "provider": "phm-data-factory",
   "name": "phm-data-factory",
+  "package_version": "0.1.0",
   "version": "0.1.0",
+  "api_schema_version": "1.0.0",
+  "capability_schema_version": "1.0.0",
+  "read_only": true,
+  "backend_kind": "runtime_selected",
+  "dataset_digest": null,
   "transport": "MCP stdio by default",
   "mutating_tools_exposed": false,
+  "capabilities": {
+    "search_samples": true,
+    "describe_sample": true,
+    "bounded_window": true,
+    "window_statistics": true,
+    "stream_cursor": false,
+    "batch_window": false,
+    "modalities": ["continuous_series"],
+    "timestamp_bases": ["sample_index"],
+    "label_visibility_policy": "legacy_metadata_surface_to_be_versioned"
+  },
   "tools": [
     {"name": "repository_summary", "purpose": "Inspect repository coverage and task counts"},
     {"name": "list_datasets", "purpose": "List dataset IDs, names, and sample counts"},
     {"name": "search_samples", "purpose": "Exact structured metadata search"},
-    {"name": "get_sample_metadata", "purpose": "Inspect labels, domain, rate, length, and channel count"},
+    {"name": "get_sample_metadata", "purpose": "Inspect the current metadata surface"},
     {"name": "get_signal_statistics", "purpose": "Read bounded per-channel statistics"},
-    {"name": "get_signal_window", "purpose": "Read bounded/downsampled waveform previews"},
+    {"name": "get_signal_window", "purpose": "Read bounded/downsampled continuous waveform previews"},
     {"name": "validate_sample", "purpose": "Check metadata against stored signal shape"}
-  ]
+  ],
+  "compatibility": {
+    "schema_rule": "same_major_version",
+    "pre_1_0_api": true,
+    "deprecation_notice": "at_least_one_minor_release_when_feasible"
+  }
 }
