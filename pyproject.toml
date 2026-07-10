@@ -23,7 +23,7 @@ legacy = ["h5py>=3.7", "openpyxl>=3.0", "xlrd>=2.0"]
 yaml = ["PyYAML>=6.0"]
 agent = ["mcp[cli]>=1.27,<2"]
 dev = ["pytest>=7", "PyYAML>=6", "h5py>=3.7", "openpyxl>=3", "xlrd>=2.0"]
-all = ["h5py>=3.7", "openpyxl>=3", "xlrd>=2.0", "PyYAML>=6", "mcp[cli]>=1.27,<2"]
+all = ["h5py>=3.7", "openpyxl>=3.0", "xlrd>=2.0", "PyYAML>=6.0", "mcp[cli]>=1.27,<2"]
 
 [project.scripts]
 phm-data = "phm_data_factory.cli:main"
@@ -31,7 +31,7 @@ phm-data-mcp = "phm_data_factory.mcp_server:main"
 phm-data-iotdb = "phm_data_factory.iotdb:main"
 
 [project.urls]
-Repository = "https://github.com/PHMbench/PHM-Vibench"
+Repository = "https://github.com/liq22/P01-phm-data-factory"
 
 [tool.setuptools.packages.find]
 where = ["src"]
