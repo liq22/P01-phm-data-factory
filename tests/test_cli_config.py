@@ -81,6 +81,17 @@ def test_config_rejects_non_mapping_iotdb_section():
         RepositoryConfig.from_mapping({"backend": "iotdb", "iotdb": ["host"]})
 
 
+def test_environment_backend_is_case_insensitive(monkeypatch):
+    monkeypatch.delenv("PHM_DATA_CONFIG", raising=False)
+    monkeypatch.setenv("PHM_DATA_BACKEND", "IOTDB")
+    monkeypatch.setenv("IOTDB_HOST", "iotdb.example")
+
+    config = RepositoryConfig.from_environment()
+
+    assert config.backend == "iotdb"
+    assert config.iotdb["host"] == "iotdb.example"
+
+
 def test_explicit_config_has_priority_over_environment(
     local_data, monkeypatch, tmp_path: Path, capsys
 ):
@@ -137,7 +148,9 @@ def test_env_config_present_only_triggers_on_phm_data_config(monkeypatch):
     assert env_config_present() is True
 
 
-def test_cli_phm_data_config_env_drives_query(local_data, monkeypatch, tmp_path: Path, capsys):
+def test_cli_phm_data_config_env_drives_query(
+    local_data, monkeypatch, tmp_path: Path, capsys
+):
     """PHM_DATA_CONFIG (no --config, no CLI flags) drives the whole query."""
     metadata, signals = local_data
     cfg = tmp_path / "phm-data.yaml"
