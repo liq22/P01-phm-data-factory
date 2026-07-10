@@ -6,6 +6,8 @@ from pathlib import Path
 import subprocess
 import sys
 
+import pytest
+
 from phm_data_factory.cli import main
 from phm_data_factory.config import RepositoryConfig
 
@@ -55,6 +57,55 @@ def test_default_config_is_iotdb():
     assert config.backend == "iotdb"
     assert config.metadata_path is None
     assert config.signal_path is None
+
+
+@pytest.mark.parametrize(
+    ("suffix", "content"),
+    [
+        (".yaml", "- local\n- iotdb\n"),
+        (".json", '["local", "iotdb"]'),
+    ],
+)
+def test_config_file_rejects_non_mapping_root(
+    tmp_path: Path, suffix: str, content: str
+):
+    config_path = tmp_path / f"invalid{suffix}"
+    config_path.write_text(content, encoding="utf-8")
+
+    with pytest.raises(ValueError, match="top-level mapping"):
+        RepositoryConfig.from_file(config_path)
+
+
+def test_config_rejects_non_mapping_iotdb_section():
+    with pytest.raises(ValueError, match="iotdb must be a mapping"):
+        RepositoryConfig.from_mapping({"backend": "iotdb", "iotdb": ["host"]})
+
+
+def test_explicit_config_has_priority_over_environment(
+    local_data, monkeypatch, tmp_path: Path, capsys
+):
+    metadata, signals = local_data
+    env_config = tmp_path / "env.yaml"
+    env_config.write_text(
+        "backend: local\n"
+        "metadata_path: missing-metadata.csv\n"
+        "signal_path: missing-signals\n",
+        encoding="utf-8",
+    )
+    explicit_config = tmp_path / "explicit.yaml"
+    explicit_config.write_text(
+        "backend: local\n"
+        f"metadata_path: {metadata}\n"
+        f"signal_path: {signals}\n",
+        encoding="utf-8",
+    )
+    monkeypatch.setenv("PHM_DATA_CONFIG", str(env_config))
+
+    code = main(["--config", str(explicit_config), "summary"])
+
+    assert code == 0
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["samples"] == 2
 
 
 def test_top_level_import_does_not_load_h5py():
