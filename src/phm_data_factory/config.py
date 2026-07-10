@@ -1,5 +1,4 @@
 """Repository configuration."""
-
 from __future__ import annotations
 import json, os
 from dataclasses import dataclass, field
@@ -77,32 +76,30 @@ class RepositoryConfig:
                 "root": os.getenv("IOTDB_ROOT", "root.vibench"),
                 "fetch_size": int(os.getenv("IOTDB_FETCH_SIZE", "5000")),
                 "zone_id": os.getenv("IOTDB_ZONE_ID", "UTC"),
+                "enable_rpc_compression": os.getenv(
+                    "IOTDB_RPC_COMPRESSION", "false"
+                ),
             }
         return cls.from_mapping(mapping)
 
 
 def env_config_present() -> bool:
-    """True if PHM_DATA_CONFIG points at a config file.
-
-    Only PHM_DATA_CONFIG triggers the env path on the CLI/MCP/import entries;
-    scattered PHM_DATA_*/IOTDB_* vars do NOT. This keeps the three entry points
-    symmetrical (--config > PHM_DATA_CONFIG > CLI args) and prevents a stray
-    IOTDB_HOST (set for import) from silently overriding --metadata/--signals
-    on `phm-data`. from_environment() still honors scattered env vars when
-    called directly from Python.
-    """
+    """True only when PHM_DATA_CONFIG selects the environment config chain."""
     return bool(os.getenv("PHM_DATA_CONFIG"))
 
 
 def build_repository(config: RepositoryConfig) -> PHMDataRepository:
     if config.backend == "local":
         return PHMDataRepository.from_local(config.metadata_path, config.signal_path)
-    from .iotdb import IoTDBConfig, IoTDBSignalStore, load_metadata_from_iotdb
+    from .iotdb import IoTDBConfig, IoTDBSignalStore
 
     db = IoTDBConfig.from_mapping(config.iotdb)
-    metadata = (
-        MetadataCatalog.from_file(config.metadata_path)
-        if config.metadata_path
-        else load_metadata_from_iotdb(db)
-    )
-    return PHMDataRepository(metadata, IoTDBSignalStore(db, metadata))
+    if config.metadata_path:
+        metadata = MetadataCatalog.from_file(config.metadata_path)
+        signals = IoTDBSignalStore(db, metadata)
+    else:
+        from .stores.iotdb.metadata import load_metadata_and_index
+
+        metadata, index = load_metadata_and_index(db)
+        signals = IoTDBSignalStore(db, metadata, sample_index=index)
+    return PHMDataRepository(metadata, signals)

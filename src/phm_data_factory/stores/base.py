@@ -1,8 +1,10 @@
-"""Signal storage protocol."""
+"""Signal storage protocols."""
 
 from __future__ import annotations
+
 from abc import ABC, abstractmethod
-from typing import Iterable, Sequence
+from typing import Any, Iterable, Mapping, Protocol, Sequence, runtime_checkable
+
 import numpy as np
 
 
@@ -36,3 +38,15 @@ class SignalStore(ABC):
 
     def __exit__(self, exc_type, exc_val, exc_tb):
         self.close()
+
+
+@runtime_checkable
+class WritableSignalStore(Protocol):
+    """Optional capability implemented by mutable backends."""
+
+    def write(
+        self,
+        sample_id: str | int,
+        values: np.ndarray,
+        **kwargs: Any,
+    ) -> Mapping[str, Any]: ...

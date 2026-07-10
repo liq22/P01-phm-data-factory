@@ -7,7 +7,7 @@ from typing import Any, Mapping, Sequence
 import numpy as np
 from .metadata import MetadataCatalog
 from .models import SignalWindow
-from .stores import SignalStore
+from .stores import SignalStore, WritableSignalStore
 
 
 class PHMDataRepository:
@@ -64,6 +64,36 @@ class PHMDataRepository:
         result["signal_available"] = self.signals.contains(sample_id)
         if result["signal_available"]:
             result["stored_shape"] = list(self.signals.shape(sample_id))
+        return result
+
+    def read_signal(
+        self,
+        sample_id,
+        start=0,
+        end=None,
+        channels: Sequence[int] | None = None,
+    ) -> np.ndarray:
+        """Return a canonical, full-resolution ``(length, channels)`` array."""
+        return self.get_signal_window(
+            sample_id,
+            start=start,
+            end=end,
+            channels=channels,
+            max_points=None,
+        ).values
+
+    def write_sample(self, sample_id, values, metadata=None, **kwargs) -> dict[str, Any]:
+        """Write one sample when the configured store supports mutation."""
+        if not isinstance(self.signals, WritableSignalStore):
+            raise TypeError(
+                f"{type(self.signals).__name__} is read-only; configure a writable backend"
+            )
+        result = dict(
+            self.signals.write(sample_id, values, metadata=metadata, **kwargs)
+        )
+        written_metadata = result.get("metadata") or metadata
+        if written_metadata is not None:
+            self.metadata.upsert(written_metadata)
         return result
 
     def get_signal_window(

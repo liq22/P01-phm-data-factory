@@ -1,6 +1,14 @@
-from .base import SignalStore
+from .base import SignalStore, WritableSignalStore
 
-__all__ = ["SignalStore", "H5SignalStore", "DirectoryH5SignalStore", "H5DataDict"]
+__all__ = [
+    "SignalStore",
+    "WritableSignalStore",
+    "H5SignalStore",
+    "DirectoryH5SignalStore",
+    "H5DataDict",
+    "IoTDBConfig",
+    "IoTDBSignalStore",
+]
 
 
 def __getattr__(name: str):
@@ -14,4 +22,8 @@ def __getattr__(name: str):
             "DirectoryH5SignalStore": DirectoryH5SignalStore,
             "H5DataDict": H5DataDict,
         }[name]
+    if name in {"IoTDBConfig", "IoTDBSignalStore"}:
+        from .iotdb import IoTDBConfig, IoTDBSignalStore
+
+        return {"IoTDBConfig": IoTDBConfig, "IoTDBSignalStore": IoTDBSignalStore}[name]
     raise AttributeError(name)

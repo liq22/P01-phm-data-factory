@@ -109,6 +109,7 @@ class SampleMetadata:
     fault_diagnosis: bool | None = None
     anomaly_detection: bool | None = None
     remaining_life: bool | None = None
+    digital_twin_prediction: bool | None = None
     extra: Mapping[str, Any] = field(default_factory=dict)
 
     @classmethod
@@ -126,6 +127,7 @@ class SampleMetadata:
                 "Name",
                 "Description",
                 "TYPE",
+                "sample_type",
                 "File",
                 "Visiable",
                 "Visible",
@@ -144,6 +146,8 @@ class SampleMetadata:
                 "Fault_Diagnosis",
                 "Anomaly_Detection",
                 "Remaining_Life",
+                "Digital_Twin_Prediction",
+                "digital_twin_prediction",
             )
         }
         return cls(
@@ -151,7 +155,7 @@ class SampleMetadata:
             dataset_id=_lookup(clean, "Dataset_id", "dataset_id"),
             name=_text(_lookup(clean, "Name", "name")),
             description=_text(_lookup(clean, "Description", "description")),
-            sample_type=_text(_lookup(clean, "TYPE", "type")),
+            sample_type=_text(_lookup(clean, "TYPE", "type", "sample_type")),
             file=_text(_lookup(clean, "File", "file")),
             visible=as_bool(_lookup(clean, "Visiable", "Visible", "visible")),
             label=_lookup(clean, "Label", "label"),
@@ -179,6 +183,13 @@ class SampleMetadata:
                 _lookup(clean, "Anomaly_Detection", "anomaly_detection")
             ),
             remaining_life=as_bool(_lookup(clean, "Remaining_Life", "remaining_life")),
+            digital_twin_prediction=as_bool(
+                _lookup(
+                    clean,
+                    "Digital_Twin_Prediction",
+                    "digital_twin_prediction",
+                )
+            ),
             extra={k: v for k, v in clean.items() if k.lower() not in known},
         )
 
@@ -204,6 +215,7 @@ class SampleMetadata:
             "fault_diagnosis": self.fault_diagnosis,
             "anomaly_detection": self.anomaly_detection,
             "remaining_life": self.remaining_life,
+            "digital_twin_prediction": self.digital_twin_prediction,
             "extra": {k: clean_value(v) for k, v in self.extra.items()},
         }
 

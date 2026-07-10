@@ -22,6 +22,10 @@ ALIASES = {
     "fault_diagnosis": ("Fault_Diagnosis", "fault_diagnosis"),
     "anomaly_detection": ("Anomaly_Detection", "anomaly_detection"),
     "remaining_life": ("Remaining_Life", "remaining_life"),
+    "digital_twin_prediction": (
+        "Digital_Twin_Prediction",
+        "digital_twin_prediction",
+    ),
 }
 
 
@@ -88,6 +92,33 @@ class MetadataCatalog:
             for k, v in self._df.loc[key].drop(labels=["__sample_id"]).to_dict().items()
         }
 
+    def upsert(self, record: SampleMetadata | Mapping[str, Any]) -> SampleMetadata:
+        """Insert or replace one record while preserving the catalog's column aliases."""
+        item = record if isinstance(record, SampleMetadata) else SampleMetadata.from_mapping(record)
+        canonical = item.to_dict()
+        extra = dict(canonical.pop("extra", {}) or {})
+        canonical.update(extra)
+
+        row: dict[str, Any] = {}
+        for field, value in canonical.items():
+            column = self._column(field) or field
+            row[column] = value
+        row[self.key_column] = item.sample_id
+
+        frame = self.df.copy()
+        key = id_text(item.sample_id)
+        for column in row:
+            if column not in frame.columns:
+                frame[column] = None
+        if key in frame.index:
+            for column, value in row.items():
+                frame.loc[key, column] = value
+        else:
+            appended = pd.DataFrame([row])
+            frame = pd.concat([frame.reset_index(drop=True), appended], ignore_index=True)
+        self.__init__(frame.reset_index(drop=True), self.key_column)
+        return item
+
     def search(
         self,
         filters: Mapping[str, Any] | None = None,
@@ -144,7 +175,12 @@ class MetadataCatalog:
                     if self._column(task)
                     else 0
                 )
-                for task in ("fault_diagnosis", "anomaly_detection", "remaining_life")
+                for task in (
+                    "fault_diagnosis",
+                    "anomaly_detection",
+                    "remaining_life",
+                    "digital_twin_prediction",
+                )
             },
         }
 

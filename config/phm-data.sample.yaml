@@ -17,3 +17,5 @@ iotdb:  # import 与 iotdb 查询共用
   root: root.vibench
   fetch_size: 5000
   zone_id: UTC
+  # 跨机访问可开启；本机默认关闭以保持当前部署行为。
+  enable_rpc_compression: false
