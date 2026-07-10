@@ -15,7 +15,12 @@ classifiers = [
   "Development Status :: 3 - Alpha",
   "License :: OSI Approved :: Apache Software License",
   "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3.10",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: 3.13",
   "Topic :: Scientific/Engineering :: Artificial Intelligence",
+  "Typing :: Typed",
 ]
 
 [project.optional-dependencies]
@@ -31,7 +36,9 @@ phm-data-mcp = "phm_data_factory.mcp_server:main"
 phm-data-iotdb = "phm_data_factory.iotdb:main"
 
 [project.urls]
-Repository = "https://github.com/PHMbench/PHM-Vibench"
+Repository = "https://github.com/liq22/P01-phm-data-factory"
+Issues = "https://github.com/liq22/P01-phm-data-factory/issues"
+Documentation = "https://github.com/liq22/P01-phm-data-factory/tree/main/docs"
 
 [tool.setuptools.packages.find]
 where = ["src"]
