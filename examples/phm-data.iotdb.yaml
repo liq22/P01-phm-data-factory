@@ -1,3 +1,5 @@
+# Pure IoTDB runtime config.
+# metadata_path / signal_path intentionally omitted: catalog is loaded from .meta devices.
 backend: iotdb
 default_max_points: 4096
 iotdb:

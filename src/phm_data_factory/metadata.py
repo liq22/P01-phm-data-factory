@@ -22,6 +22,10 @@ ALIASES = {
     "fault_diagnosis": ("Fault_Diagnosis", "fault_diagnosis"),
     "anomaly_detection": ("Anomaly_Detection", "anomaly_detection"),
     "remaining_life": ("Remaining_Life", "remaining_life"),
+    "digital_twin_prediction": (
+        "Digital_Twin_Prediction",
+        "digital_twin_prediction",
+    ),
 }
 
 
@@ -144,7 +148,12 @@ class MetadataCatalog:
                     if self._column(task)
                     else 0
                 )
-                for task in ("fault_diagnosis", "anomaly_detection", "remaining_life")
+                for task in (
+                    "fault_diagnosis",
+                    "anomaly_detection",
+                    "remaining_life",
+                    "digital_twin_prediction",
+                )
             },
         }
 

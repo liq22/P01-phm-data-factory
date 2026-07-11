@@ -100,9 +100,40 @@ def build_repository(config: RepositoryConfig) -> PHMDataRepository:
     from .iotdb import IoTDBConfig, IoTDBSignalStore, load_metadata_from_iotdb
 
     db = IoTDBConfig.from_mapping(config.iotdb)
-    metadata = (
-        MetadataCatalog.from_file(config.metadata_path)
-        if config.metadata_path
-        else load_metadata_from_iotdb(db)
-    )
-    return PHMDataRepository(metadata, IoTDBSignalStore(db, metadata))
+    if config.metadata_path:
+        # External (xlsx) catalog: contains() must DB-check for correctness.
+        metadata = MetadataCatalog.from_file(config.metadata_path)
+        store = IoTDBSignalStore(db, metadata, availability_via_catalog=False)
+    else:
+        # Catalog from IoTDB: it IS the imported set → cheap, correct contains().
+        metadata = load_metadata_from_iotdb(db)
+        store = IoTDBSignalStore(db, metadata, availability_via_catalog=True)
+    return PHMDataRepository(metadata, store)
+
+
+def connect(
+    config: str | Path | Mapping[str, Any] | RepositoryConfig | None = None,
+    /,
+    **overrides: Any,
+) -> PHMDataRepository:
+    """One-liner entry point: open a ``PHMDataRepository``.
+
+    ``config`` accepts a config file path, a mapping, an existing
+    ``RepositoryConfig``, or ``None`` (read env / ``PHM_DATA_CONFIG``).
+    Keyword ``overrides`` are merged into the ``iotdb`` block. Works for both
+    ``local`` and ``iotdb`` backends — the returned object is the same
+    ``PHMDataRepository`` abstraction either way.
+    """
+    if config is None:
+        rc = RepositoryConfig.from_environment()
+    elif isinstance(config, RepositoryConfig):
+        rc = config
+    elif isinstance(config, Mapping):
+        rc = RepositoryConfig.from_mapping(config)
+    else:
+        rc = RepositoryConfig.from_file(config)
+    if overrides:
+        from dataclasses import replace
+
+        rc = replace(rc, iotdb={**rc.iotdb, **overrides})
+    return build_repository(rc)

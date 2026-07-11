@@ -44,6 +44,8 @@ class AgentDataTools:
                 "anomaly_detection": "anomaly_detection",
                 "rul": "remaining_life",
                 "remaining_life": "remaining_life",
+                "digital_twin": "digital_twin_prediction",
+                "digital_twin_prediction": "digital_twin_prediction",
             }
             if task.lower() not in aliases:
                 raise ValueError(f"Unknown task: {task}")
@@ -98,6 +100,7 @@ class AgentDataTools:
         return {
             "name": "phm-data-factory",
             "version": "0.1.0",
+            "api_version": "0.2",
             "read_only": True,
             "tools": [
                 "repository_summary",

@@ -1,3 +1,5 @@
+# Local smoke / migration source config.
+# Copy to config/phm-data.yaml and replace paths with machine-local absolute paths.
 backend: local
 metadata_path: ../data/metadata.xlsx
 signal_path: ../data

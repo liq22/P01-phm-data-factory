@@ -6,8 +6,9 @@ from pathlib import Path
 from typing import Any, Mapping, Sequence
 import numpy as np
 from .metadata import MetadataCatalog
-from .models import SignalWindow
+from .models import SampleMetadata, SignalWindow
 from .stores import SignalStore
+from .stores.base import WritableSignalStore
 
 
 class PHMDataRepository:
@@ -107,6 +108,44 @@ class PHMDataRepository:
             tuple(selected),
             record.sample_rate,
             values,
+        )
+
+    def read_signal(
+        self,
+        sample_id,
+        start: int = 0,
+        end: int | None = None,
+        channels: Sequence[int] | None = None,
+    ) -> np.ndarray:
+        """Training path: return the raw signal window as an ndarray, NO decimation.
+
+        This is the v0.2 stable read op for PHM-Vibench (Dataset/DataLoader want
+        a dense ndarray, not a bounded preview). For bounded Agent/JSON previews
+        use ``get_signal_window`` (which applies ``max_points`` decimation).
+        """
+        return self.get_signal_window(sample_id, start, end, channels, None).values
+
+    def write_sample(
+        self,
+        sample_id,
+        values: np.ndarray,
+        metadata: Mapping[str, Any] | SampleMetadata | None = None,
+        *,
+        mode: str = "error",
+        **kwargs: Any,
+    ) -> dict[str, Any]:
+        """v0.2 stable write op. ``mode``: ``"error"`` (default) raises if the
+        sample already exists; ``"overwrite"`` replaces it. Raises ``TypeError``
+        if the backend is read-only (e.g. HDF5).
+        """
+        store = self.signals
+        if not isinstance(store, WritableSignalStore):
+            raise TypeError(
+                f"{type(store).__name__} is read-only; write is only supported "
+                "on writable backends (e.g. IoTDB)"
+            )
+        return dict(
+            store.write(sample_id, values, metadata=metadata, mode=mode, **kwargs)
         )
 
     def get_signal_statistics(

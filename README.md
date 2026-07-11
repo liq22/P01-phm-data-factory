@@ -86,6 +86,20 @@ with build_repository(config) as repo:
     print(tools.search_samples(task="fault_diagnosis", limit=10))
 ```
 
+一行接入（v0.2 稳定后端契约，见 [docs/API_CONTRACT.md](docs/API_CONTRACT.md) + [docs/IOTDB_BACKEND.md](docs/IOTDB_BACKEND.md)）：
+
+```python
+from phm_data_factory import connect
+
+with connect("config/phm-data.yaml") as repo:   # local 与 iotdb 后端同一抽象
+    rows = repo.search_samples({"name": "RM_001_CWRU"}, limit=10)
+    x    = repo.read_signal("1", 0, 4096, channels=[0, 1])   # ndarray，不降采样
+    # 仅 iotdb 后端可写（HDF5 只读）：
+    repo.write_sample("new_id", x, metadata=rows[0], mode="error")
+```
+
+`backend: iotdb` 且省略 `metadata_path` 时，元数据从 IoTDB 的 `.meta` 设备读，**换机不再需要本地 `metadata.xlsx`**。新增任务标志 `digital_twin_prediction`（生成式 benchmark 可按列过滤）。
+
 IoTDB 路径布局：
 
 ```text
@@ -155,6 +169,8 @@ Client 配置（Claude Desktop / Cursor 等 MCP client）：
 |---|---|
 | [QUICKSTART_ZH.md](docs/QUICKSTART_ZH.md) | 中文 10 分钟上手 |
 | [INTEGRATION_GUIDE.md](docs/INTEGRATION_GUIDE.md) | **接入主指南**：配置链、import、tsfile 结论、R00 接入、故障排查 |
+| [API_CONTRACT.md](docs/API_CONTRACT.md) | **v0.2 稳定后端契约**：connect + 4 op + 分级 + 弃用策略 |
+| [IOTDB_BACKEND.md](docs/IOTDB_BACKEND.md) | **IoTDB 后端开发指南**：connect / read_signal / write_sample / 直接 store |
 | [BENCHMARK_INTEGRATION.md](docs/BENCHMARK_INTEGRATION.md) | **benchmark 接入 + 工业优化**：8 环节+缺口、Python 3 姿态、在线/离线瓶颈与优化 |
 | [IOTDB_GUIDE.md](docs/IOTDB_GUIDE.md) | IoTDB 启动（docker / WSL2 直跑）+ 四阶段验收 |
 | [ARCHITECTURE.md](docs/ARCHITECTURE.md) | 数据流架构 |
