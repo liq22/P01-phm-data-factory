@@ -1,0 +1,437 @@
+From 432b04a22c6110c8cc28d4dec65459f6c3d9071a Mon Sep 17 00:00:00 2001
+From: liq22 <liq22@tsinghua.org.cn>
+Date: Thu, 16 Jul 2026 16:21:51 +0800
+Subject: [PATCH] feat(data): add phm-data-factory training backend
+
+---
+ .gitmodules                           |  3 ++
+ docs/phm_data_factory.md              | 27 ++++++++++
+ packages/phm-data-factory             |  1 +
+ src/config_schema/models.py           | 16 +++++-
+ src/configs/config_utils.py           | 18 ++++++-
+ src/data_factory/__init__.py          |  6 +++
+ src/data_factory/data_factory.py      | 17 ++++++
+ src/data_factory/phm_data_factory.py  | 67 +++++++++++++++++++++++
+ src/data_factory/standalone.py        | 72 +++++++++++++++++++++++++
+ test/test_phm_data_factory_backend.py | 77 +++++++++++++++++++++++++++
+ 10 files changed, 300 insertions(+), 4 deletions(-)
+ create mode 100644 docs/phm_data_factory.md
+ create mode 160000 packages/phm-data-factory
+ create mode 100644 src/data_factory/phm_data_factory.py
+ create mode 100644 src/data_factory/standalone.py
+ create mode 100644 test/test_phm_data_factory_backend.py
+
+diff --git a/.gitmodules b/.gitmodules
+index a97b08c..c3f2eba 100644
+--- a/.gitmodules
++++ b/.gitmodules
+@@ -30,3 +30,6 @@
+ 	path = paper/LQ_vibench_fix
+ 	url = git@github.com:liq22/LQ_vibench_fix.git
+ 	branch = lqfix_25-12
++[submodule "phm-data-factory"]
++	path = packages/phm-data-factory
++	url = https://github.com/liq22/P01-phm-data-factory.git
+diff --git a/docs/phm_data_factory.md b/docs/phm_data_factory.md
+new file mode 100644
+index 0000000..b189daf
+--- /dev/null
++++ b/docs/phm_data_factory.md
+@@ -0,0 +1,27 @@
++# phm-data-factory backend
++
++PHM-Vibench can keep its existing `build_data()` pipeline while delegating
++typed metadata and dense signal reads to the standalone provider.
++
++```yaml
++data:
++  factory_name: phm_data
++  phm_data_config: configs/data/cwru-iotdb.yaml
++  dataset_name: CWRU
++```
++
++Initialize the exact provider revision and install it locally:
++
++```bash
++git submodule update --init packages/phm-data-factory
++pip install -e 'packages/phm-data-factory[yaml,legacy]'
++python -m scripts.validate_configs
++python -m pytest -q test/test_phm_data_factory_backend.py
++```
++
++`phm_data_config` is mandatory; there is no silent HDF5 fallback. The provider
++may select local HDF5 or IoTDB. PHM-Vibench continues to own dataset filtering,
++splits, windowing, normalization, Dataset/DataLoader, task and trainer logic.
++
++Older IoTDB imports with indexed/string-only metadata must be upgraded with
++`phm-data-iotdb sync-metadata` before training.
+diff --git a/packages/phm-data-factory b/packages/phm-data-factory
+new file mode 160000
+index 0000000..5580faf
+--- /dev/null
++++ b/packages/phm-data-factory
+@@ -0,0 +1 @@
++Subproject commit 5580fafec2ea5615f6d3276d95e1e5a948cc0f13
+diff --git a/src/config_schema/models.py b/src/config_schema/models.py
+index ef4aeac..045b745 100644
+--- a/src/config_schema/models.py
++++ b/src/config_schema/models.py
+@@ -25,11 +25,23 @@ class EnvironmentConfig(BaseModel):
+ class DataConfig(BaseModel):
+     model_config = ConfigDict(extra="allow")
+ 
+-    data_dir: str = Field(..., description="Dataset root dir containing metadata and processed files.")
+-    metadata_file: str = Field(..., description="Metadata filename relative to data_dir (xlsx/csv).")
++    factory_name: str = "default"
++    data_dir: Optional[str] = Field(None, description="Dataset root dir containing metadata and processed files.")
++    metadata_file: Optional[str] = Field(None, description="Metadata filename relative to data_dir (xlsx/csv).")
++    phm_data_config: Optional[str] = None
++    dataset_name: Optional[str] = None
+     batch_size: Optional[int] = Field(None, ge=1)
+     num_workers: Optional[int] = Field(None, ge=0)
+ 
++    @model_validator(mode="after")
++    def _check_backend_fields(self) -> "DataConfig":
++        if self.factory_name == "phm_data":
++            if not self.phm_data_config:
++                raise ValueError("data.factory_name=phm_data requires phm_data_config")
++        elif not self.data_dir or not self.metadata_file:
++            raise ValueError("data_dir and metadata_file are required")
++        return self
++
+ 
+ class ModelConfig(BaseModel):
+     model_config = ConfigDict(extra="allow")
+diff --git a/src/configs/config_utils.py b/src/configs/config_utils.py
+index 78f12af..4ddfeb6 100644
+--- a/src/configs/config_utils.py
++++ b/src/configs/config_utils.py
+@@ -254,7 +254,7 @@ def _validate_config_wrapper(config: ConfigWrapper) -> None:
+         ValueError: 缺少必需字段时
+     """
+     required_sections = {
+-        'data': ['data_dir', 'metadata_file'],
++        'data': [],
+         'model': ['name', 'type'],
+         'task': ['name', 'type']
+     }
+@@ -271,6 +271,15 @@ def _validate_config_wrapper(config: ConfigWrapper) -> None:
+             if not hasattr(section_obj, field):
+                 raise ValueError(f"缺少必需字段: {section}.{field}")
+ 
++    data = config.data
++    if getattr(data, 'factory_name', 'default') == 'phm_data':
++        if not getattr(data, 'phm_data_config', None):
++            raise ValueError("data.factory_name=phm_data requires data.phm_data_config")
++    else:
++        for field in ('data_dir', 'metadata_file'):
++            if not getattr(data, field, None):
++                raise ValueError(f"缺少必需字段: data.{field}")
++
+     # 扩展验证：对比学习配置验证
+     _validate_contrastive_config(config)
+ 
+@@ -411,7 +420,12 @@ def makedir(path):
+ 
+ def build_experiment_name(configs) -> str:
+     """Compose an experiment name from configuration sections."""
+-    dataset_name = configs.data.metadata_file
++    dataset_name = getattr(configs.data, "dataset_name", None)
++    if not dataset_name:
++        source = getattr(configs.data, "metadata_file", None) or getattr(
++            configs.data, "phm_data_config", "dataset"
++        )
++        dataset_name = Path(str(source)).stem
+     model_name = configs.model.name
+     task_name = f"{configs.task.type}{configs.task.name}"
+     timestamp = datetime.now().strftime("%d_%H%M%S")
+diff --git a/src/data_factory/__init__.py b/src/data_factory/__init__.py
+index fa7fb1f..1de8c43 100644
+--- a/src/data_factory/__init__.py
++++ b/src/data_factory/__init__.py
+@@ -9,6 +9,8 @@ from .data_factory import (
+ )
+ from .dataset_task.Dataset_cluster import IdIncludedDataset
+ from .id_data_factory import id_data_factory
++from .phm_data_factory import phm_data_factory
++from .standalone import build_agent_data_tools, build_data_backend, build_data_repository
+ 
+ 
+ 
+@@ -58,9 +60,13 @@ def build_data(args_data: Any, args_task: Any) -> Any:
+ # public exports
+ __all__ = [
+     "build_data",
++    "build_data_repository",
++    "build_data_backend",
++    "build_agent_data_tools",
+     "resolve_data_factory_class",
+     "register_data_factory",
+     "DATA_FACTORY_REGISTRY",
+     "IdIncludedDataset",
+     "id_data_factory",
++    "phm_data_factory",
+ ]
+diff --git a/src/data_factory/data_factory.py b/src/data_factory/data_factory.py
+index 0b2a3d2..facf67b 100644
+--- a/src/data_factory/data_factory.py
++++ b/src/data_factory/data_factory.py
+@@ -380,6 +380,23 @@ class data_factory:
+     def __len__(self):
+         """返回数据集数量"""
+         return len(self.data)
++
++    def close(self):
++        close = getattr(self.data, "close", None)
++        if callable(close):
++            close()
++
++    def __enter__(self):
++        return self
++
++    def __exit__(self, exc_type, exc_val, exc_tb):
++        self.close()
++
++    def __del__(self):
++        try:
++            self.close()
++        except Exception:
++            pass
+     
+ 
+ 
+diff --git a/src/data_factory/phm_data_factory.py b/src/data_factory/phm_data_factory.py
+new file mode 100644
+index 0000000..6ea3dec
+--- /dev/null
++++ b/src/data_factory/phm_data_factory.py
+@@ -0,0 +1,67 @@
++"""PHM-Vibench training factory backed by phm-data-factory."""
++
++from __future__ import annotations
++
++from collections.abc import Iterator, Mapping
++from typing import Any
++
++import numpy as np
++
++from .data_factory import data_factory, register_data_factory
++from .data_utils import MetadataAccessor
++from .standalone import build_data_repository
++
++
++class RepositorySignalMapping(Mapping[str, np.ndarray]):
++    def __init__(self, repository: Any):
++        self.repository = repository
++
++    def __getitem__(self, sample_id: str | int) -> np.ndarray:
++        return self.repository.read_signal(sample_id)
++
++    def __iter__(self) -> Iterator[str]:
++        return iter(self.repository.metadata.keys())
++
++    def __len__(self) -> int:
++        return len(self.repository.metadata)
++
++    def close(self) -> None:
++        self.repository.close()
++
++
++@register_data_factory("phm_data")
++class phm_data_factory(data_factory):
++    """Keep existing splits/Datasets/DataLoaders over a repository backend."""
++
++    def __init__(self, args_data: Any, args_task: Any):
++        self._repository = None
++        self._closed = False
++        super().__init__(args_data, args_task)
++
++    def _init_metadata(self, args_data: Any) -> MetadataAccessor:
++        self._repository = build_data_repository(args_data)
++        frame = self._repository.metadata_frame("phm_vibench_v1")
++        return MetadataAccessor(frame, key_column="Id")
++
++    def _init_data(self, args_data: Any, **_: Any) -> RepositorySignalMapping:
++        del args_data
++        return RepositorySignalMapping(self._repository)
++
++    def close(self) -> None:
++        if self._closed:
++            return
++        self._closed = True
++        if self._repository is not None:
++            self._repository.close()
++
++    def __enter__(self):
++        return self
++
++    def __exit__(self, exc_type, exc_val, exc_tb) -> None:
++        self.close()
++
++    def __del__(self):
++        try:
++            self.close()
++        except Exception:
++            pass
+diff --git a/src/data_factory/standalone.py b/src/data_factory/standalone.py
+new file mode 100644
+index 0000000..3b9ddd6
+--- /dev/null
++++ b/src/data_factory/standalone.py
+@@ -0,0 +1,72 @@
++"""Bridge PHM-Vibench configuration to the standalone data backend."""
++
++from __future__ import annotations
++
++import sys
++from pathlib import Path
++from typing import Any
++
++
++def _load_module():
++    try:
++        import phm_data_factory
++    except ModuleNotFoundError:
++        package_src = (
++            Path(__file__).resolve().parents[2]
++            / "packages"
++            / "phm-data-factory"
++            / "src"
++        )
++        if not package_src.exists():
++            raise ModuleNotFoundError(
++                "Install phm-data-factory or initialize packages/phm-data-factory"
++            )
++        sys.path.insert(0, str(package_src))
++        import phm_data_factory
++    return phm_data_factory
++
++
++def _value(config: Any, name: str, default: Any = None) -> Any:
++    return config.get(name, default) if isinstance(config, dict) else getattr(
++        config, name, default
++    )
++
++
++def _configured_backend(args_data: Any):
++    configured = _value(args_data, "phm_data_config")
++    if not configured:
++        raise ValueError("data.factory_name=phm_data requires data.phm_data_config")
++    if isinstance(configured, dict):
++        return configured
++    path = Path(configured).expanduser()
++    if path.is_absolute():
++        return path.resolve()
++    base = Path(_value(args_data, "data_dir", ".") or ".").expanduser().resolve()
++    return (base / path).resolve()
++
++
++def build_data_repository(args_data: Any, signal_path=None):
++    """Return the configured repository; never silently select a fallback."""
++
++    del signal_path
++    return _load_module().connect(_configured_backend(args_data))
++
++
++def build_data_backend(args_data: Any, signal_path=None):
++    return build_data_repository(args_data, signal_path=signal_path)
++
++
++def build_agent_data_tools(
++    args_data: Any,
++    signal_path=None,
++    default_max_points: int | None = None,
++    profile: str = "benchmark_public",
++):
++    del signal_path
++    tools = _load_module().connect_agent(
++        _configured_backend(args_data), profile=profile
++    )
++    max_points = default_max_points or _value(args_data, "agent_max_points")
++    if max_points is not None:
++        tools.default_max_points = int(max_points)
++    return tools
+diff --git a/test/test_phm_data_factory_backend.py b/test/test_phm_data_factory_backend.py
+new file mode 100644
+index 0000000..12ac227
+--- /dev/null
++++ b/test/test_phm_data_factory_backend.py
+@@ -0,0 +1,77 @@
++from __future__ import annotations
++
++from pathlib import Path
++from types import SimpleNamespace
++
++import h5py
++import numpy as np
++import pandas as pd
++import pytest
++
++from src.config_schema.models import DataConfig
++from src.data_factory import build_data, build_data_repository
++from src.data_factory.data_factory import data_factory
++
++
++def _backend_config(tmp_path: Path) -> Path:
++    pd.DataFrame(
++        [
++            {
++                "Id": 1,
++                "Dataset_id": 7,
++                "Name": "fixture",
++                "Visiable": 1,
++                "Label": 2,
++                "Domain_id": 3,
++                "Sample_lenth": 8,
++                "Channel": 1,
++            }
++        ]
++    ).to_csv(tmp_path / "metadata.csv", index=False)
++    with h5py.File(tmp_path / "cache.h5", "w") as handle:
++        handle.create_dataset("1", data=np.arange(8, dtype=np.float64)[:, None])
++    config = tmp_path / "phm-data.yaml"
++    config.write_text(
++        "backend: local\n"
++        f"metadata_path: {tmp_path / 'metadata.csv'}\n"
++        f"signal_path: {tmp_path / 'cache.h5'}\n",
++        encoding="utf-8",
++    )
++    return config
++
++
++def test_data_config_requires_fields_conditionally():
++    DataConfig(factory_name="phm_data", phm_data_config="backend.yaml")
++    DataConfig(data_dir="data", metadata_file="metadata.csv")
++    with pytest.raises(ValueError, match="phm_data_config"):
++        DataConfig(factory_name="phm_data")
++    with pytest.raises(ValueError, match="data_dir"):
++        DataConfig()
++
++
++def test_registered_factory_uses_repository_and_preserves_training_metadata(
++    tmp_path: Path, monkeypatch
++):
++    config = _backend_config(tmp_path)
++    monkeypatch.setattr(
++        data_factory, "_init_dataset", lambda self: ("train", "val", "test")
++    )
++    monkeypatch.setattr(
++        data_factory, "_init_dataloader", lambda self: ("tl", "vl", "xl")
++    )
++    args_data = SimpleNamespace(
++        factory_name="phm_data", phm_data_config=str(config), num_workers=0
++    )
++    factory = build_data(args_data, SimpleNamespace(name="Default", type="DG"))
++    try:
++        assert factory.metadata["1"]["Dataset_id"] == 7
++        assert factory.metadata["1"]["Label"] == 2
++        np.testing.assert_array_equal(factory.data["1"][:, 0], np.arange(8))
++    finally:
++        factory.close()
++        factory.close()
++
++
++def test_bridge_rejects_silent_backend_fallback():
++    with pytest.raises(ValueError, match="phm_data_config"):
++        build_data_repository(SimpleNamespace(factory_name="phm_data"))
+
