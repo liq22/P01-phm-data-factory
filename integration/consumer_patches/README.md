@@ -24,5 +24,6 @@ otherwise the portable GitHub submodule URL cannot fetch the pinned object.
 Validation performed before export:
 
 - provider: `67 passed, 1 skipped`; wheel `phm_data_factory-0.2.0` built;
-- PHM-Vibench: 3 backend tests passed; 7/7 configs validated;
+- PHM-Vibench (`LQ_signal`, Python 3.10, Lightning 2.3.3): full maintained
+  suite `106 passed, 1 skipped`; the skip was CUDA-only; 7/7 configs validated;
 - phm-agent-benchmark: 191 tests passed; exact submodule topology passed.
