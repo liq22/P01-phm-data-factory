@@ -52,6 +52,11 @@ class PHMDataRepository:
     def list_datasets(self):
         return self.metadata.list_datasets()
 
+    def metadata_frame(self, profile: str = "canonical"):
+        """Trusted training metadata; intentionally absent from Agent/MCP tools."""
+
+        return self.metadata.to_frame(profile)
+
     def search_samples(
         self,
         filters: Mapping[str, Any] | None = None,

@@ -14,6 +14,7 @@ class RepositoryConfig:
     backend: str
     metadata_path: Path | None = None
     signal_path: Path | None = None
+    dataset_manifest_path: Path | None = None
     default_max_points: int = 4096
     iotdb: Mapping[str, Any] = field(default_factory=dict)
 
@@ -34,13 +35,21 @@ class RepositoryConfig:
         )
         metadata = resolve(mapping.get("metadata_path", mapping.get("metadata")))
         signals = resolve(mapping.get("signal_path", mapping.get("signals")))
+        dataset_manifest = resolve(
+            mapping.get("dataset_manifest_path", mapping.get("dataset_manifest"))
+        )
         if backend == "local" and (metadata is None or signals is None):
             raise ValueError("Local backend requires metadata_path and signal_path")
         max_points = int(mapping.get("default_max_points", 4096))
         if max_points <= 0:
             raise ValueError("default_max_points must be positive")
         return cls(
-            backend, metadata, signals, max_points, dict(mapping.get("iotdb", {}))
+            backend,
+            metadata,
+            signals,
+            dataset_manifest,
+            max_points,
+            dict(mapping.get("iotdb", {})),
         )
 
     @classmethod
@@ -66,6 +75,7 @@ class RepositoryConfig:
             "backend": backend,
             "metadata_path": os.getenv("PHM_DATA_METADATA"),
             "signal_path": os.getenv("PHM_DATA_SIGNALS"),
+            "dataset_manifest_path": os.getenv("PHM_DATA_MANIFEST"),
             "default_max_points": os.getenv("PHM_DATA_MAX_POINTS", "4096"),
         }
         if backend == "iotdb":
@@ -111,19 +121,11 @@ def build_repository(config: RepositoryConfig) -> PHMDataRepository:
     return PHMDataRepository(metadata, store)
 
 
-def connect(
+def _coerce_config(
     config: str | Path | Mapping[str, Any] | RepositoryConfig | None = None,
     /,
     **overrides: Any,
-) -> PHMDataRepository:
-    """One-liner entry point: open a ``PHMDataRepository``.
-
-    ``config`` accepts a config file path, a mapping, an existing
-    ``RepositoryConfig``, or ``None`` (read env / ``PHM_DATA_CONFIG``).
-    Keyword ``overrides`` are merged into the ``iotdb`` block. Works for both
-    ``local`` and ``iotdb`` backends — the returned object is the same
-    ``PHMDataRepository`` abstraction either way.
-    """
+) -> RepositoryConfig:
     if config is None:
         rc = RepositoryConfig.from_environment()
     elif isinstance(config, RepositoryConfig):
@@ -136,4 +138,42 @@ def connect(
         from dataclasses import replace
 
         rc = replace(rc, iotdb={**rc.iotdb, **overrides})
-    return build_repository(rc)
+    return rc
+
+
+def connect(
+    config: str | Path | Mapping[str, Any] | RepositoryConfig | None = None,
+    /,
+    **overrides: Any,
+) -> PHMDataRepository:
+    """One-liner entry point for the training repository API."""
+
+    return build_repository(_coerce_config(config, **overrides))
+
+
+def connect_agent(
+    config: str | Path | Mapping[str, Any] | RepositoryConfig | None = None,
+    /,
+    *,
+    profile: str = "benchmark_public",
+    dataset_digest: str | None = None,
+    **overrides: Any,
+):
+    """Open bounded read-only Agent tools with concrete runtime identity."""
+
+    from .agent import AgentDataTools
+    from .identity import load_dataset_identity
+
+    rc = _coerce_config(config, **overrides)
+    if dataset_digest is None and rc.dataset_manifest_path is not None:
+        dataset_digest = load_dataset_identity(rc.dataset_manifest_path)[
+            "dataset_digest"
+        ]
+    backend_kind = "local_hdf5" if rc.backend == "local" else "iotdb_tree"
+    return AgentDataTools(
+        build_repository(rc),
+        rc.default_max_points,
+        profile=profile,
+        backend_kind=backend_kind,
+        dataset_digest=dataset_digest,
+    )

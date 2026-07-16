@@ -75,14 +75,12 @@ phm-data --config config/phm-data.yaml window 1 --start 0 --end 12000 --channels
 phm-data --config config/phm-data.yaml metadata 1
 ```
 
-Python：
+Python（Agent/MCP 默认使用 benchmark-safe 公共视图）：
 
 ```python
-from phm_data_factory import AgentDataTools, RepositoryConfig, build_repository
+from phm_data_factory import connect_agent
 
-config = RepositoryConfig.from_file("config/phm-data.yaml")
-with build_repository(config) as repo:
-    tools = AgentDataTools(repo, config.default_max_points)
+with connect_agent("config/phm-data.yaml") as tools:
     print(tools.search_samples(task="fault_diagnosis", limit=10))
 ```
 
@@ -117,7 +115,11 @@ phm-data-iotdb import --config config/phm-data.yaml --report import-report.json
 # --sample-id <id> 指定单样本试导；--continue-on-error 全量容错；--chunk-size 控制批次
 ```
 
-`--report` 生成的 `data_manifest`（schema_version / root / signal_path_pattern / source hashes / imported/failed ids）可作论文证据链。
+`--report` 生成 v2 `data_manifest`，包含路径无关的 `dataset_identity` / `dataset_digest`、source hashes 与 imported/failed ids。已有 IoTDB 信号可仅补元数据，不重写 93GB 波形：
+
+```bash
+phm-data-iotdb sync-metadata --config config/phm-data.yaml --report metadata-sync.json
+```
 
 ## check 返回码
 
@@ -161,7 +163,7 @@ Client 配置（Claude Desktop / Cursor 等 MCP client）：
 
 ## PHM-Vibench 桥接
 
-`integration/phm_vibench/` 含薄适配器，仅新增 `build_data_repository` 和 `build_agent_data_tools`；现有 `build_data()` 训练入口不变。详见 [PHMBENCH_INTEGRATION.md](docs/PHMBENCH_INTEGRATION.md)。
+`integration/phm_vibench/` 注册 `factory_name: phm_data`，让现有 `build_data()` 训练入口直接读取 local/IoTDB repository，同时保留 PHM-Vibench 的 split、Dataset 和 DataLoader。详见 [PHMBENCH_INTEGRATION.md](docs/PHMBENCH_INTEGRATION.md)。
 
 ## 文档导航
 

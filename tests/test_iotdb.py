@@ -144,7 +144,7 @@ def test_import_repository_includes_iotdb_data_manifest(repository, monkeypatch)
     )
 
     manifest = report["data_manifest"]
-    assert manifest["schema_version"] == "phm-data-factory/iotdb-data-manifest-v1"
+    assert manifest["schema_version"] == "phm-data-factory/iotdb-data-manifest-v2"
     assert manifest["root"] == "root.paper"
     assert manifest["path_model"] == "tree"
     assert manifest["source"]["metadata"]["sha256"] == "metadata-digest"

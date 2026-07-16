@@ -22,7 +22,7 @@ from ..base import SignalStore
 from .config import IoTDBConfig
 from .metadata import _catalog_from_session
 from .paths import IoTDBPathCodec
-from .schema import SCHEMA, to_text
+from .schema import METADATA_SCHEMA_VERSION, SCHEMA, encode_metadata, to_text
 from .session import IoTDBSession
 
 _MAX_INT64 = 9223372036854775807
@@ -306,6 +306,19 @@ class IoTDBSignalStore(SignalStore):
             self._resolved = False
             self.metadata = None
 
+    def write_metadata(self, metadata: Mapping[str, Any] | SampleMetadata) -> None:
+        """Admin-only metadata upsert that never writes signal measurements."""
+
+        record = (
+            metadata
+            if isinstance(metadata, SampleMetadata)
+            else SampleMetadata.from_mapping(metadata)
+        )
+        if not self.contains(record.sample_id):
+            raise KeyError(f"Signal data is missing for {record.sample_id}")
+        self.ensure_database()
+        self._write_metadata(record)
+
     # ----- internals -----
     def _existing_record(self, sample_id) -> SampleMetadata | None:
         try:
@@ -419,6 +432,8 @@ class IoTDBSignalStore(SignalStore):
             "anomaly_detection": record.anomaly_detection,
             "remaining_life": record.remaining_life,
             "digital_twin_prediction": record.digital_twin_prediction,
+            "metadata_schema_version": METADATA_SCHEMA_VERSION,
+            "metadata_json": encode_metadata(record),
         }
         chosen = [
             (n, t, values[n]) for n, t in zip(names, types) if values.get(n) is not None

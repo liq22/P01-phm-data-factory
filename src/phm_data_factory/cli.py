@@ -6,6 +6,8 @@ from pathlib import Path
 from typing import Any, Sequence
 from .agent import AgentDataTools
 from .config import RepositoryConfig, build_repository, env_config_present
+from .identity import build_dataset_identity, load_dataset_identity
+from .stores.iotdb.bulk import build_source_manifest
 
 
 def parser():
@@ -13,6 +15,7 @@ def parser():
     p.add_argument("--config")
     p.add_argument("--metadata")
     p.add_argument("--signals")
+    p.add_argument("--dataset-manifest")
     p.add_argument("--backend", choices=("local", "iotdb"), default="iotdb")
     p.add_argument("--default-max-points", type=int, default=4096)
     p.add_argument("--host", default="127.0.0.1")
@@ -23,10 +26,17 @@ def parser():
     p.add_argument("--fetch-size", type=int, default=5000)
     p.add_argument("--zone-id", default="UTC")
     p.add_argument("--compact", action="store_true")
+    p.add_argument(
+        "--profile",
+        choices=("benchmark_public", "research"),
+        default="benchmark_public",
+    )
     sub = p.add_subparsers(dest="command", required=True)
     sub.add_parser("summary")
     sub.add_parser("datasets")
     sub.add_parser("manifest")
+    identity = sub.add_parser("identity")
+    identity.add_argument("--output")
     s = sub.add_parser("search")
     s.add_argument("--filter", action="append", default=[])
     s.add_argument("--task")
@@ -61,6 +71,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                     "backend": args.backend,
                     "metadata_path": args.metadata,
                     "signal_path": args.signals,
+                    "dataset_manifest_path": args.dataset_manifest,
                     "default_max_points": args.default_max_points,
                     "iotdb": {
                         "host": args.host,
@@ -75,13 +86,40 @@ def main(argv: Sequence[str] | None = None) -> int:
                 Path.cwd(),
             )
         with build_repository(config) as repo:
-            tools = AgentDataTools(repo, config.default_max_points)
+            digest = None
+            if config.dataset_manifest_path:
+                digest = load_dataset_identity(config.dataset_manifest_path)[
+                    "dataset_digest"
+                ]
+            tools = AgentDataTools(
+                repo,
+                config.default_max_points,
+                profile=args.profile,
+                backend_kind=(
+                    "local_hdf5" if config.backend == "local" else "iotdb_tree"
+                ),
+                dataset_digest=digest,
+            )
             if args.command == "summary":
                 result = tools.repository_summary()
             elif args.command == "datasets":
                 result = tools.list_datasets()
             elif args.command == "manifest":
                 result = tools.manifest()
+            elif args.command == "identity":
+                if config.metadata_path is None or config.signal_path is None:
+                    raise ValueError(
+                        "identity requires metadata_path and signal_path in config"
+                    )
+                result = build_dataset_identity(
+                    build_source_manifest(config.metadata_path, config.signal_path),
+                    repo.metadata.keys(),
+                )
+                if args.output:
+                    Path(args.output).write_text(
+                        json.dumps(result, ensure_ascii=False, indent=2) + "\n",
+                        encoding="utf-8",
+                    )
             elif args.command == "search":
                 filters = {}
                 for item in args.filter:

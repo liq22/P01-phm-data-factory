@@ -1,6 +1,6 @@
 # Validation record
 
-Version: `0.1.0`
+Version: `0.2.0`
 
 Validated locally with Python 3.13 against:
 
@@ -11,6 +11,8 @@ Validated locally with Python 3.13 against:
 - FastMCP server construction with MCP 1.28;
 - Apache IoTDB Python client 2.0.8 imports and method signatures;
 - fake IoTDB Session writes for aligned schema, metadata records, tablet chunks.
+- Agent DataPort 1.0 manifests and benchmark-public label isolation;
+- path-independent dataset identity and typed IoTDB v2 metadata round-trips.
 
 Commands:
 

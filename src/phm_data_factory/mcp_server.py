@@ -3,8 +3,7 @@
 from __future__ import annotations
 import argparse, atexit
 from typing import Sequence
-from .agent import AgentDataTools
-from .config import RepositoryConfig, build_repository, env_config_present
+from .config import RepositoryConfig, connect_agent, env_config_present
 
 
 def create_server(config: RepositoryConfig):
@@ -12,8 +11,8 @@ def create_server(config: RepositoryConfig):
         from mcp.server.fastmcp import FastMCP
     except ImportError as exc:
         raise RuntimeError("Install phm-data-factory[agent]") from exc
-    repository = build_repository(config)
-    tools = AgentDataTools(repository, config.default_max_points)
+    tools = connect_agent(config, profile="benchmark_public")
+    repository = tools.repository
     mcp = FastMCP("PHM Data Factory")
 
     @mcp.tool()
@@ -28,14 +27,18 @@ def create_server(config: RepositoryConfig):
     def search_samples(
         dataset_id: str | None = None,
         name: str | None = None,
-        label: str | None = None,
         domain_id: str | None = None,
         task: str | None = None,
         visible_only: bool = False,
         limit: int = 50,
     ) -> list[dict]:
         return tools.search_samples(
-            dataset_id, name, label, domain_id, task, visible_only, limit
+            dataset_id=dataset_id,
+            name=name,
+            domain_id=domain_id,
+            task=task,
+            visible_only=visible_only,
+            limit=limit,
         )
 
     @mcp.tool()

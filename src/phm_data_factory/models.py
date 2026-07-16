@@ -234,6 +234,8 @@ class SignalWindow:
             "sample_rate": self.sample_rate,
             "shape": list(self.values.shape),
             "time_basis": "sample_index",
+            "modality": "continuous_series",
+            "dtype": str(self.values.dtype),
             "values": self.values.tolist(),
         }
         if self.sample_rate:

@@ -94,7 +94,8 @@ def main(argv: Sequence[str] | None = None) -> int:
     sub = parser.add_subparsers(dest="command", required=True)
     check = sub.add_parser("check")
     ingest = sub.add_parser("import")
-    for p in (check, ingest):
+    sync = sub.add_parser("sync-metadata")
+    for p in (check, ingest, sync):
         p.add_argument(
             "--config",
             help="RepositoryConfig file (also read via PHM_DATA_CONFIG env)",
@@ -115,6 +116,11 @@ def main(argv: Sequence[str] | None = None) -> int:
     ingest.add_argument("--visible-only", action="store_true")
     ingest.add_argument("--continue-on-error", action="store_true")
     ingest.add_argument("--report")
+    sync.add_argument(
+        "--metadata", help="metadata file (or set via --config / PHM_DATA_CONFIG)"
+    )
+    sync.add_argument("--continue-on-error", action="store_true")
+    sync.add_argument("--report")
     args = parser.parse_args(argv)
     config, rc = _resolve_iotdb_config(args)
     try:
@@ -140,7 +146,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                     f"RPC port {config.port} not reachable — start IoTDB first "
                     "(cd docker/iotdb && docker compose up -d)"
                 )
-        else:
+        elif args.command == "import":
             from .repository import PHMDataRepository
 
             metadata = args.metadata or (
@@ -165,6 +171,46 @@ def main(argv: Sequence[str] | None = None) -> int:
                     args.continue_on_error,
                     build_source_manifest(metadata, signals),
                 )
+            if args.report:
+                Path(args.report).write_text(
+                    json.dumps(result, ensure_ascii=False, indent=2) + "\n",
+                    encoding="utf-8",
+                )
+        else:
+            from .metadata import MetadataCatalog
+            from .stores.iotdb import IoTDBSignalStore
+
+            metadata_path = args.metadata or (
+                str(rc.metadata_path) if rc and rc.metadata_path else None
+            )
+            if not metadata_path:
+                raise ValueError(
+                    "sync-metadata requires --metadata or metadata_path in config"
+                )
+            catalog = MetadataCatalog.from_file(metadata_path)
+            synced, failed = [], []
+            with IoTDBSignalStore(
+                config, catalog, availability_via_catalog=False
+            ) as store:
+                for sample_id in catalog.keys():
+                    try:
+                        store.write_metadata(catalog.raw(sample_id))
+                        synced.append(sample_id)
+                    except Exception as item_exc:
+                        failed.append(
+                            {"sample_id": str(sample_id), "error": str(item_exc)}
+                        )
+                        if not args.continue_on_error:
+                            raise
+            result = {
+                "schema_version": "phm-data-factory/metadata-sync-report-v1",
+                "metadata_schema_version": "phm-data-factory/iotdb-metadata-v2",
+                "synced_count": len(synced),
+                "failed_count": len(failed),
+                "synced_sample_ids": synced,
+                "failed": failed,
+                "signals_rewritten": False,
+            }
             if args.report:
                 Path(args.report).write_text(
                     json.dumps(result, ensure_ascii=False, indent=2) + "\n",

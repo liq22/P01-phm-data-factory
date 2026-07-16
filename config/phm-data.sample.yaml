@@ -8,6 +8,9 @@ backend: local  # 或 iotdb（导入完成后切换；两端同一 PHMDataReposi
 metadata_path: /abs/path/to/metadata.xlsx
 signal_path: /abs/path/to/signals_dir
 
+# Agent benchmark 运行时身份；可直接指向 import --report 输出。
+dataset_manifest_path: /abs/path/to/import-report.json
+
 default_max_points: 4096
 
 iotdb:  # import 与 iotdb 查询共用

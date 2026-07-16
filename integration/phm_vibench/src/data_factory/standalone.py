@@ -1,10 +1,4 @@
-"""Optional bridge from PHM-Vibench configs to ``phm-data-factory``.
-
-This module does not participate in the benchmark training pipeline. It only
-constructs the standalone repository / read-only Agent tool surface / data
-backend from the existing ``data`` config block. Split / window / label /
-domain logic stays in PHM-Vibench.
-"""
+"""Bridge PHM-Vibench configuration to the standalone data backend."""
 
 from __future__ import annotations
 
@@ -17,14 +11,15 @@ def _load_module():
     try:
         import phm_data_factory
     except ModuleNotFoundError:
-        # Source-checkout fallback. Normal installations should use
-        # ``pip install -e packages/phm-data-factory`` instead.
-        repo_root = Path(__file__).resolve().parents[2]
-        package_src = repo_root / "packages" / "phm-data-factory" / "src"
+        package_src = (
+            Path(__file__).resolve().parents[2]
+            / "packages"
+            / "phm-data-factory"
+            / "src"
+        )
         if not package_src.exists():
             raise ModuleNotFoundError(
-                "phm-data-factory is not installed and the monorepo package "
-                f"was not found at {package_src}"
+                "Install phm-data-factory or initialize packages/phm-data-factory"
             )
         sys.path.insert(0, str(package_src))
         import phm_data_factory
@@ -32,65 +27,44 @@ def _load_module():
 
 
 def _value(config: Any, name: str, default: Any = None) -> Any:
-    if isinstance(config, dict):
-        return config.get(name, default)
-    return getattr(config, name, default)
+    return config.get(name, default) if isinstance(config, dict) else getattr(
+        config, name, default
+    )
 
 
-def _resolve_under_data_dir(data_dir: Path, value: str | Path) -> Path:
-    path = Path(value).expanduser()
-    return path.resolve() if path.is_absolute() else (data_dir / path).resolve()
+def _configured_backend(args_data: Any):
+    configured = _value(args_data, "phm_data_config")
+    if not configured:
+        raise ValueError("data.factory_name=phm_data requires data.phm_data_config")
+    if isinstance(configured, dict):
+        return configured
+    path = Path(configured).expanduser()
+    if path.is_absolute():
+        return path.resolve()
+    base = Path(_value(args_data, "data_dir", ".") or ".").expanduser().resolve()
+    return (base / path).resolve()
 
 
-def build_data_repository(args_data: Any, signal_path: str | Path | None = None):
-    """Create the standalone repository from PHM-Vibench's data config.
+def build_data_repository(args_data: Any, signal_path=None):
+    del signal_path
+    return _load_module().connect(_configured_backend(args_data))
 
-    The caller owns the returned repository and must call ``close()`` or use it
-    as a context manager.
-    """
-    module = _load_module()
-    data_dir = Path(_value(args_data, "data_dir", "data")).expanduser().resolve()
-    metadata_file = _value(args_data, "metadata_file", "metadata.xlsx")
-    metadata_path = _resolve_under_data_dir(data_dir, metadata_file)
 
-    configured_signal = signal_path or _value(args_data, "agent_signal_path")
-    if configured_signal:
-        signals = _resolve_under_data_dir(data_dir, configured_signal)
-    else:
-        cache = data_dir / "cache.h5"
-        signals = cache if cache.exists() else data_dir
-    return module.PHMDataRepository.from_local(metadata_path, signals)
+def build_data_backend(args_data: Any, signal_path=None):
+    return build_data_repository(args_data, signal_path=signal_path)
 
 
 def build_agent_data_tools(
     args_data: Any,
-    signal_path: str | Path | None = None,
+    signal_path=None,
     default_max_points: int | None = None,
+    profile: str = "benchmark_public",
 ):
-    """Create bounded, read-only Agent tools from the existing data config."""
-    module = _load_module()
-    repository = build_data_repository(args_data, signal_path=signal_path)
-    max_points = default_max_points
-    if max_points is None:
-        max_points = int(_value(args_data, "agent_max_points", 4096))
-    return module.AgentDataTools(repository, default_max_points=max_points)
-
-
-def build_data_backend(
-    args_data: Any, signal_path: str | Path | None = None
-):
-    """Return a ``PHMDataRepository`` as the stable v0.2 read+write data backend.
-
-    Prefers an IoTDB backend when ``phm_data_config`` is set in the data config
-    (a path to a phm-data-factory yaml); otherwise builds a local HDF5
-    repository. Consumed via the contract: ``search_samples``,
-    ``get_sample_metadata``, ``read_signal``, ``write_sample``. The caller owns
-    the repository.
-    """
-    module = _load_module()
-    phm_cfg = _value(args_data, "phm_data_config")
-    if phm_cfg:
-        data_dir = Path(_value(args_data, "data_dir", ".")).expanduser().resolve()
-        cfg_path = _resolve_under_data_dir(data_dir, phm_cfg)
-        return module.connect(str(cfg_path))
-    return build_data_repository(args_data, signal_path=signal_path)
+    del signal_path
+    tools = _load_module().connect_agent(
+        _configured_backend(args_data), profile=profile
+    )
+    max_points = default_max_points or _value(args_data, "agent_max_points")
+    if max_points is not None:
+        tools.default_max_points = int(max_points)
+    return tools

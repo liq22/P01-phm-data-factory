@@ -51,10 +51,17 @@ def read_metadata(path: str | Path) -> pd.DataFrame:
 
 
 class MetadataCatalog:
-    def __init__(self, dataframe: pd.DataFrame, key_column: str | None = None):
+    def __init__(
+        self,
+        dataframe: pd.DataFrame,
+        key_column: str | None = None,
+        *,
+        fidelity: str = "lossless_source",
+    ):
         if dataframe.empty:
             raise ValueError("Metadata table is empty")
         self._df = dataframe.copy()
+        self.fidelity = str(fidelity)
         self.key_column = key_column or self._column("sample_id")
         if not self.key_column:
             raise ValueError("Metadata must contain Id")
@@ -142,6 +149,7 @@ class MetadataCatalog:
             "samples": len(self),
             "datasets": len(self.list_datasets()),
             "columns": [str(c) for c in self._df.columns if c != "__sample_id"],
+            "metadata_fidelity": self.fidelity,
             "tasks": {
                 task: (
                     len(self.search({task: True}, limit=None))
@@ -160,6 +168,52 @@ class MetadataCatalog:
     @property
     def df(self) -> pd.DataFrame:
         return self._df.drop(columns=["__sample_id"])
+
+    def to_frame(self, profile: str = "canonical") -> pd.DataFrame:
+        """Return a copy in the canonical or PHM-Vibench legacy column profile."""
+
+        if profile == "canonical":
+            return self.df.copy()
+        if profile != "phm_vibench_v1":
+            raise ValueError(f"Unknown metadata profile: {profile}")
+        if self.fidelity == "indexed_v1":
+            raise ValueError(
+                "PHM-Vibench requires lossless typed metadata; run "
+                "phm-data-iotdb sync-metadata first"
+            )
+        rows = []
+        for sample_id in self.keys():
+            raw = self.raw(sample_id)
+            record = SampleMetadata.from_mapping(raw)
+            row = dict(record.extra)
+            row.update(raw)
+            legacy = {
+                "Id": record.sample_id,
+                "Dataset_id": clean_value(record.dataset_id),
+                "Name": record.name,
+                "Description": record.description,
+                "TYPE": record.sample_type,
+                "File": record.file,
+                "Visiable": record.visible,
+                "Visible": record.visible,
+                "Label": clean_value(record.label),
+                "Label_Description": record.label_description,
+                "Fault_level": clean_value(record.fault_level),
+                "RUL_label": clean_value(record.rul_label),
+                "RUL_label_description": record.rul_label_description,
+                "Domain_id": clean_value(record.domain_id),
+                "Domain_description": record.domain_description,
+                "Sample_rate": record.sample_rate,
+                "Sample_lenth": record.sample_length,
+                "Channel": record.channels,
+                "Fault_Diagnosis": record.fault_diagnosis,
+                "Anomaly_Detection": record.anomaly_detection,
+                "Remaining_Life": record.remaining_life,
+                "Digital_Twin_Prediction": record.digital_twin_prediction,
+            }
+            row.update(legacy)
+            rows.append(row)
+        return pd.DataFrame(rows)
 
     def query(self, query_str: str) -> pd.DataFrame:
         return self.df.query(query_str)

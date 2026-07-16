@@ -53,6 +53,19 @@ report  = repo.write_sample(sample_id, values, metadata=None, *, mode="error", *
   `mode="overwrite"` replaces it. Raises `TypeError` on a read-only backend
   (e.g. HDF5). `metadata` may be a `SampleMetadata`, a mapping, or `None`.
 
+Trusted PHM-Vibench adapters may additionally call
+`metadata_frame("phm_vibench_v1")`. It returns legacy column names with typed
+scalar values and rejects reduced-fidelity IoTDB v1 metadata.
+
+### Agent DataPort 1.0
+
+`connect_agent(config, profile="benchmark_public", dataset_digest=None)` returns
+context-managed, read-only `AgentDataTools`. Its manifest reports package
+version `0.2.0`, API/capability schema `1.0.0`, concrete backend/dataset identity,
+continuous-series/sample-index capabilities, and label visibility policy.
+`benchmark_public` forces visible-only search, rejects private filters and
+unlisted IDs, and removes label/target fields. MCP is locked to this profile.
+
 ## Not in the v0.2 contract (Internal / Admin / deferred)
 
 | Symbol | Tier | Notes |
@@ -73,8 +86,9 @@ report  = repo.write_sample(sample_id, values, metadata=None, *, mode="error", *
 
 ## Versioning & deprecation policy
 
-- Contract version is reported by `AgentDataTools.manifest()["api_version"]`
-  (currently `"0.2"`) and by this document.
+- Training contract is v0.2. Agent schema is reported by
+  `api_schema_version="1.0.0"`; `api_version="0.2"` is a one-minor deprecated
+  compatibility alias.
 - **Stable** symbols: breaking changes require a contract major bump and one
   minor cycle of deprecation warnings before removal.
 - **Internal** symbols: may change at any minor version.

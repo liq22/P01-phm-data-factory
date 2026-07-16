@@ -9,6 +9,7 @@ from .data_factory import (
 )
 from .dataset_task.Dataset_cluster import IdIncludedDataset
 from .id_data_factory import id_data_factory
+from .phm_data_factory import phm_data_factory
 from .standalone import build_agent_data_tools, build_data_backend, build_data_repository
 
 
@@ -65,4 +66,5 @@ __all__ = [
     "DATA_FACTORY_REGISTRY",
     "IdIncludedDataset",
     "id_data_factory",
+    "phm_data_factory",
 ]

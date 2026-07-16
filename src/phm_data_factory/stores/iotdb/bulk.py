@@ -13,6 +13,7 @@ import json
 from pathlib import Path
 from typing import Any, Mapping, Sequence
 
+from ...identity import build_dataset_identity
 from ...repository import PHMDataRepository
 from .config import IoTDBConfig
 from .schema import SCHEMA
@@ -150,8 +151,23 @@ def build_iotdb_data_manifest(
     failed: Sequence[Mapping[str, Any]],
     source_manifest: Mapping[str, Any] | None = None,
 ) -> dict[str, Any]:
+    imported_ids = [str(item["sample_id"]) for item in imported]
+    source = dict(source_manifest or {})
+    signal_source = dict(source.get("signals") or {})
+    source_is_complete = bool(dict(source.get("metadata") or {}).get("sha256")) and (
+        bool(signal_source.get("sha256"))
+        or (
+            signal_source.get("kind") == "directory"
+            and all(item.get("sha256") for item in signal_source.get("files") or [])
+        )
+    )
+    identity = (
+        build_dataset_identity(source, imported_ids)
+        if source_is_complete
+        else None
+    )
     return {
-        "schema_version": "phm-data-factory/iotdb-data-manifest-v1",
+        "schema_version": "phm-data-factory/iotdb-data-manifest-v2",
         "backend": "iotdb",
         "root": config.root,
         "path_model": "tree",
@@ -159,8 +175,11 @@ def build_iotdb_data_manifest(
         "signal_path_pattern": f"{config.root}.<dataset>.sample_<Id>.signal.ch_<channel>",
         "metadata_path_pattern": f"{config.root}.<dataset>.sample_<Id>.meta.<field>",
         "metadata_fields": [name for name, _ in SCHEMA],
-        "source": dict(source_manifest or {}),
+        "source": source,
+        "dataset_identity": identity,
+        "dataset_digest": identity["dataset_digest"] if identity else None,
+        "metadata_fidelity": "lossless_v2",
         "sample_ids": repository.metadata.keys(),
-        "imported_sample_ids": [str(item["sample_id"]) for item in imported],
+        "imported_sample_ids": imported_ids,
         "failed_sample_ids": [str(item["sample_id"]) for item in failed],
     }

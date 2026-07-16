@@ -8,9 +8,12 @@
 from __future__ import annotations
 import re
 
+import pandas as pd
+
 from ...metadata import MetadataCatalog
 from .config import IoTDBConfig
 from .session import IoTDBSession
+from .schema import METADATA_SCHEMA_VERSION, decode_metadata
 
 
 def _catalog_from_session(config: IoTDBConfig, session) -> MetadataCatalog | None:
@@ -46,7 +49,26 @@ def _catalog_from_session(config: IoTDBConfig, session) -> MetadataCatalog | Non
     )
     if frame.empty:
         return None
-    return MetadataCatalog(frame, "sample_id")
+    payload_rows = []
+    complete_v2 = "metadata_json" in frame.columns and "metadata_schema_version" in frame.columns
+    if complete_v2:
+        for _, row in frame.iterrows():
+            payload = row.get("metadata_json")
+            if (
+                row.get("metadata_schema_version") != METADATA_SCHEMA_VERSION
+                or payload is None
+                or pd.isna(payload)
+            ):
+                complete_v2 = False
+                break
+            payload_rows.append(decode_metadata(row["metadata_json"]))
+    if complete_v2:
+        return MetadataCatalog(
+            pd.DataFrame(payload_rows),
+            "sample_id",
+            fidelity="lossless_v2",
+        )
+    return MetadataCatalog(frame, "sample_id", fidelity="indexed_v1")
 
 
 def load_metadata_from_iotdb(config: IoTDBConfig) -> MetadataCatalog:

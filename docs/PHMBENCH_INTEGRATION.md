@@ -1,39 +1,50 @@
-# Standalone PHM data access
+# PHM-Vibench training backend
 
-PHM-Vibench keeps the existing training contract. The optional
-`packages/phm-data-factory` package exposes an IoTDB-backed runtime data layer
-to scripts and local agents without importing PyTorch, task datasets, samplers,
-or trainers. Legacy metadata/HDF5 inputs remain available for migration and
-bridge compatibility.
+PHM-Vibench owns dataset selection, splitting, windowing, Dataset/DataLoader,
+tasks and trainers. `phm-data-factory` supplies typed metadata and dense signal
+arrays through the unchanged `build_data(args_data, args_task)` entry point.
 
-## Install
+## Install the exact provider revision
+
+Both PHM-Vibench and phm-agent-benchmark must pin the same `v0.2.0` commit as a
+Git submodule. From PHM-Vibench:
 
 ```bash
-pip install -e 'packages/phm-data-factory[yaml,agent,legacy]'
+git submodule update --init packages/phm-data-factory
+pip install -e 'packages/phm-data-factory[yaml,legacy]'
 ```
 
-## Use the existing data config
+## Configure training
+
+```yaml
+data:
+  factory_name: phm_data
+  phm_data_config: configs/data/cwru-iotdb.yaml
+  dataset_name: CWRU  # optional; used in output naming
+  batch_size: 32
+  num_workers: 4
+```
+
+`phm_data_config` is required and may select either `local` or `iotdb`.
+There is no silent fallback to `data_dir`/`metadata_file`. Other factory names
+retain the legacy requirements.
+
+The registered factory obtains metadata with
+`repo.metadata_frame("phm_vibench_v1")` and signals with `repo.read_signal()`.
+IoTDB metadata must be typed v2; if an older import is detected, run:
+
+```bash
+phm-data-iotdb sync-metadata --config config/phm-data.yaml --report metadata-sync.json
+```
+
+## Optional Agent access
 
 ```python
 from src.data_factory import build_agent_data_tools
 
 with build_agent_data_tools(args.data) as tools:
-    print(tools.repository_summary())
-    print(tools.get_sample_metadata("1"))
+    print(tools.search_samples(task="fault_diagnosis", limit=10))
 ```
 
-The legacy bridge resolves `data.data_dir`, `data.metadata_file`, and
-`cache.h5`. If the consolidated cache does not yet exist, it reads `<Name>.h5`
-files from the data directory.
-
-## Run a local MCP server
-
-Create an IoTDB config such as `examples/phm-data.iotdb.yaml`, then:
-
-```bash
-phm-data-mcp --config /absolute/path/phm-data.iotdb.yaml
-```
-
-The Agent surface is read-only and returns bounded waveform previews. Training
-code should use the Python repository directly with `max_points=None` when it
-needs complete tensors.
+This helper defaults to `benchmark_public`: visible samples only, no label or
+target fields, bounded windows, and no write/import operation.

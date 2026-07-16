@@ -1,35 +1,28 @@
 # Apply to PHM-Vibench
 
-The ready-to-merge overlay uses this repository layout:
+This overlay is prepared against PHM-Vibench commit
+`d9b0d7fea121cb028b9275704f412fefc49560d2` and supplies the registered
+`phm_data` factory plus bridge tests/docs. The accompanying consumer patch also
+updates conditional config validation and experiment naming.
 
-```text
-packages/phm-data-factory/       # standalone installable package
-src/data_factory/standalone.py   # thin PHM-Vibench bridge
-src/data_factory/__init__.py     # existing API plus two bridge exports
-requirements-agent.txt           # optional local-Agent dependencies
-docs/phm_data_factory.md
-test/test_standalone_data_factory.py
-```
-
-From the PHM-Vibench repository root, extract the overlay archive and copy its
-contents into the repository, preserving paths. Then run:
+The final consumer commit must add `packages/phm-data-factory` as a submodule
+at the exact `v0.2.0` commit used by phm-agent-benchmark. Then run:
 
 ```bash
-pip install -e 'packages/phm-data-factory[yaml,agent,legacy]'
-PYTHONPATH=. pytest -q packages/phm-data-factory/tests
-pytest -q test/test_standalone_data_factory.py
+git submodule update --init packages/phm-data-factory
+pip install -e 'packages/phm-data-factory[yaml,legacy]'
+python -m scripts.validate_configs
+PYTHONPATH=. python -m pytest -q test/test_phm_data_factory_backend.py
 ```
 
-The existing `build_data(args_data, args_task)` path is unchanged. The only new
-PHM-Vibench exports are:
+Training configuration:
 
-```python
-from src.data_factory import build_agent_data_tools, build_data_repository
+```yaml
+data:
+  factory_name: phm_data
+  phm_data_config: configs/data/cwru-iotdb.yaml
+  dataset_name: CWRU
 ```
 
-## Compatibility note
-
-The overlay is prepared against PHM-Vibench commit
-`b7e62c4c97693d058b92b63b5ec6d0b201799a4f`. If `src/data_factory/__init__.py`
-has changed since that commit, copy the two imports/exports manually rather
-than overwriting newer repository changes.
+`build_data(args_data, args_task)` is unchanged. Missing `phm_data_config` is an
+error; the adapter never silently switches to a local HDF5 backend.

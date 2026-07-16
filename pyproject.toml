@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "phm-data-factory"
-version = "0.1.0"
+version = "0.2.0"
 description = "Agent-ready PHM data access layer with Apache IoTDB as the runtime backend"
 readme = "README.md"
 requires-python = ">=3.10"
@@ -31,7 +31,7 @@ phm-data-mcp = "phm_data_factory.mcp_server:main"
 phm-data-iotdb = "phm_data_factory.iotdb:main"
 
 [project.urls]
-Repository = "https://github.com/PHMbench/PHM-Vibench"
+Repository = "https://github.com/liq22/P01-phm-data-factory"
 
 [tool.setuptools.packages.find]
 where = ["src"]

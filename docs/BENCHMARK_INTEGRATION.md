@@ -15,7 +15,7 @@ data-factory 是**只读 PHM 数据访问层**，被 benchmark 与 agent 复用�
 | **data-factory** | IoTDB 元数据查找、信号随机访问、样本验证、JSON CLI、只读 Agent 工具 |
 | **benchmark** | task 切分（DG/CDDG/FS/...）、PyTorch Dataset/DataLoader、采样器、模型、训练器 |
 
-**硬约束**（`docs/GOAL.md`）：benchmark 的 `build_data()` 训练入口**不变**；factory 只**新增** `build_data_repository` / `build_agent_data_tools`（overlay 模式，`integration/phm_vibench/src/data_factory/standalone.py`）。
+**硬约束**（`docs/GOAL.md`）：benchmark 的 `build_data()` 训练入口**不变**；PHM-Vibench 通过注册 `factory_name: phm_data` 接入，Agent benchmark 只通过 `connect_agent` / `AgentDataTools` 接入。
 
 ---
 
@@ -24,13 +24,13 @@ data-factory 是**只读 PHM 数据访问层**，被 benchmark 与 agent 复用�
 | # | 环节 | factory 现状（file:line） | benchmark 侧责任 | 缺口 |
 |---|---|---|---|---|
 | ① | 配置发现 | `--config` > `PHM_DATA_CONFIG` > CLI args（`config.py:84-94`、`iotdb.py:481-496`）；散落 `IOTDB_*` 不入链 | 设 `PHM_DATA_CONFIG` 或调 `build_agent_data_tools(args.data)` | 配置无 schema 版本号；benchmark `data:` 块与 factory 配置是两套 |
-| ② | schema 约定 | `SampleMetadata` 21 字段（`models.py:90-112`）；IoTDB tree 路径 `root.vibench.<ds>.sample_<id>.signal.ch_<n>`（`iotdb.py:52-61`）；列名拼写别名容忍（`metadata.py:12-25`） | 按同一份 `metadata.xlsx` 用 `sample_id` 主键对齐 | **`IoTDBImporter.SCHEMA`（`iotdb.py:192-208`）丢 `Digital_Twin_Prediction`** —— 生成式 benchmark 该列落 `extra`，无法按它过滤 |
+| ② | schema 约定 | IoTDB v2 同时保存检索索引和 typed JSON metadata；`metadata_frame("phm_vibench_v1")` 恢复训练列与标量类型 | 用 `sample_id` 主键对齐；旧库先执行 `sync-metadata` | v1 索引元数据只能降级读取，不能直接训练 |
 | ③ | task 语义 | `search_samples(task=fault/anomaly/rul)` + 别名（`agent.py:40-50`）；未知 task 抛错 | 自己跑 DG/CDDG/FS 切分（`task.type`） | **factory task 与 benchmark `task.type` 正交两套**；命名不一致（`rul_prediction` ≠ `remaining_life`） |
 | ④ | split | **不做**（`GOAL.md` 明确） | 全权负责 train/val/test + 切域 | 设计正确；`summary()` 不报 split 比例（需 benchmark 文档明示） |
 | ⑤ | 性能基线 | `skills/iotdb/scripts/performance_test.py`；`check` 返回码 0/2/3（`iotdb.py:528-581`） | 接入前跑 `phm-data-iotdb check` | 缺基准阈值文档；`summary()` 对 IoTDB 大库慢（`availability_is_cheap=False`，`repository.py:38`） |
-| ⑥ | 版本兼容 | `__version__="0.1.0"`（`__init__.py:10`）；`manifest schema_version v1`（`iotdb.py:442`）；overlay 锁 base commit（`integration/phm_vibench/BASE_COMMIT.txt`） | 依赖 overlay 两导出名 | **API 无 SemVer / 无 deprecation 周期** —— 7 个方法名只是隐式契约（`agent.py:96-111`），改名将静默破坏所有 benchmark（最大风险） |
-| ⑦ | 只读契约 | Agent/MCP `read_only:true`（`agent.py:100-101`、`examples/agent-manifest.json`） | 训练侧用 `max_points=None` 拿全量（`PHMBENCH_INTEGRATION.md:36-39`） | Python 路径 `PHMDataRepository` 可调 `IoTDBImporter` 写库 —— 无强制只读，靠自律 |
-| ⑧ | 离线/在线 | 双后端 `local`/`iotdb`（`config.py:24`）；tsfile 旁路不可行（schema 不匹配） | local 用 `configs/local/local.yaml`；iotdb 设 `PHM_DATA_CONFIG` | R00 训练侧仍读 `cache.h5`；factory iotdb 后端只服务 Agent/查询，不参与训练数据流 |
+| ⑥ | 版本兼容 | 包版本 `0.2.0`；Agent API/capability schema `1.0.0`；两个消费者固定同一 Git commit | 校验 submodule SHA 与 manifest major | `api_version="0.2"` 只保留一个小版本 |
+| ⑦ | 只读契约 | `benchmark_public` 强制 visible-only、标签移除和 bounded window；MCP 固定使用该 profile | evaluator 私有标签由 benchmark 自己持有 | 管理员 import/sync 不进入 Agent 工具面 |
+| ⑧ | 离线/在线 | local/IoTDB 都实现 repository；PHM-Vibench `phm_data` factory 可直接训练 | 保留原 split/Dataset/DataLoader | 流式与离散/event 模态仍是显式后续 gate |
 
 ---
 
@@ -47,13 +47,12 @@ data-factory 是**只读 PHM 数据访问层**，被 benchmark 与 agent 复用�
 ### 最小代码（Python 直调，推荐）
 
 ```python
-from phm_data_factory import AgentDataTools, RepositoryConfig, build_repository
+from phm_data_factory import connect_agent
 
-config = RepositoryConfig.from_file("config/phm-data.yaml")  # 或 from_environment / from_mapping
-with build_repository(config) as repo, AgentDataTools(repo, config.default_max_points) as tools:
+with connect_agent("config/phm-data.yaml") as tools:
     tools.repository_summary()                              # 轻：盘点覆盖
     tools.search_samples(task="fault_diagnosis", limit=10)  # 轻：结构化检索
-    meta = tools.get_sample_metadata("1")                   # 轻：label / shape
+    meta = tools.get_sample_metadata("1")                   # 轻：public shape，无 label
     win  = tools.get_signal_window("1", 0, 1024, max_points=512)  # 重：bounded 信号窗口
     stats = tools.get_signal_statistics("1")                # 重：per-channel 统计
 ```
