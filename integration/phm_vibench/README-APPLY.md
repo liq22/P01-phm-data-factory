@@ -1,9 +1,10 @@
 # Apply to PHM-Vibench
 
 This overlay is prepared against PHM-Vibench commit
-`d9b0d7fea121cb028b9275704f412fefc49560d2` and supplies the registered
+`a331769d4005018bc833534ecf4efeb5e8a5a78d` and supplies the registered
 `phm_data` factory plus bridge tests/docs. The accompanying consumer patch also
-updates conditional config validation and experiment naming.
+updates conditional config validation, experiment naming, documentation scope,
+and validation of initialized Git submodules.
 
 The final consumer commit must add `packages/phm-data-factory` as a submodule
 at the exact `v0.2.0` commit used by phm-agent-benchmark. Then run:

@@ -1,5 +1,9 @@
 # Standalone PHM data access
 
+**Status: Experimental.** This adapter is contract-tested but is not part of the
+PHM-Vibench v0.2 release-supported demo matrix and carries no real-dataset
+performance claim.
+
 PHM-Vibench keeps the existing training contract. The optional
 `packages/phm-data-factory` package exposes an IoTDB-backed runtime data layer
 to scripts and local agents without importing PyTorch, task datasets, samplers,

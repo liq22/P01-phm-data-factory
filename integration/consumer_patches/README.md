@@ -17,13 +17,13 @@ git am /path/to/0002-phm-agent-benchmark-data-contract.patch
 git submodule update --init src/phm_data_factory
 ```
 
-The provider commit currently exists locally and is not pushed by this change.
-Push the `v0.2.0` commit/tag before applying these patches on another machine,
-otherwise the portable GitHub submodule URL cannot fetch the pinned object.
+The provider commit must be reachable from a public remote branch before these
+patches are applied on another machine. Publish the immutable `v0.2.0` tag only
+after the provider PR is merged.
 
 Validation performed before export:
 
 - provider: `67 passed, 1 skipped`; wheel `phm_data_factory-0.2.0` built;
 - PHM-Vibench (`LQ_signal`, Python 3.10, Lightning 2.3.3): full maintained
-  suite `106 passed, 1 skipped`; the skip was CUDA-only; 7/7 configs validated;
+  suite `132 passed, 1 skipped`; the skip was CUDA-only; 7/7 configs validated;
 - phm-agent-benchmark: 191 tests passed; exact submodule topology passed.

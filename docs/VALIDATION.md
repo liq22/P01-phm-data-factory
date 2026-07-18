@@ -27,7 +27,7 @@ count.
 
 ## Cross-repository v0.2 acceptance
 
-Validated on 2026-07-16 with provider tag `v0.2.0` at
+Validated again on 2026-07-18 with the local provider tag `v0.2.0` at
 `5580fafec2ea5615f6d3276d95e1e5a948cc0f13`. Both PHM-Vibench and
 phm-agent-benchmark pinned that exact commit.
 
@@ -50,7 +50,7 @@ conda run -n LQ_signal env \
 
 Results:
 
-- PHM-Vibench maintained tests: `106 passed, 1 skipped, 6 warnings`;
+- PHM-Vibench maintained tests: `132 passed, 1 skipped, 10 warnings`;
 - skipped test: CUDA-only TSPN-UXFD assembly because CUDA was unavailable;
 - warnings: dependency deprecations plus unavailable NVML, with no test failure;
 - PHM-Vibench config validation: `7/7` passed;
