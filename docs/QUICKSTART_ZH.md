@@ -128,27 +128,12 @@ root.vibench.<dataset>.sample_<Id>.meta.<field>
 
 迁移完成后，日常查询、MCP 和 Agent 只需要 IoTDB。
 
-## 接入 PHM-Vibench
+## 接入 PHMFactory
 
-把 overlay ZIP 解压到 PHM-Vibench 根目录并保留路径，然后：
-
-```bash
-pip install -e 'packages/phm-data-factory[yaml,agent,legacy]'
-PYTHONPATH=. pytest -q packages/phm-data-factory/tests
-pytest -q test/test_standalone_data_factory.py
-```
-
-现有训练入口不变；新增入口：
-
-```python
-from src.data_factory import build_agent_data_tools, build_data_repository
-
-with build_agent_data_tools(args.data) as tools:
-    print(tools.repository_summary())
-```
+PHMFactory v0.3.0 不包含该可选 backend。v0.3.1 由 PHMFactory 仓库中的 bounded adapter PR 接入组织仓库与 immutable gitlink；不要复制旧 overlay，也不要把 submodule checkout 注入 `sys.path`。具体边界见 [PHMBENCH_INTEGRATION.md](PHMBENCH_INTEGRATION.md)。
 
 ## 当前验证范围
 
 - 单元测试覆盖 legacy metadata/HDF5、IoTDB mock、CLI/config 和导入边界；
 - Wheel 构建命令：`python -m pip wheel --no-deps --no-build-isolation .`；
-- 当前环境未启动真实 IoTDB 容器，因此真实服务器 smoke test 需在有 Docker 的机器执行。
+- IoTDB 2.0.8 已完成 12 样本小批量验收，并于 2026-08-01 用全新实例重跑合成样本导入、live pytest 和 AgentDataTools 受限窗口链路；约 250GB 全量导入与性能仍未验证。

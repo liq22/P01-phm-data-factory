@@ -57,6 +57,25 @@ def test_default_config_is_iotdb():
     assert config.signal_path is None
 
 
+def test_config_rejects_non_mapping_root():
+    import pytest
+
+    with pytest.raises(TypeError, match="must be a mapping"):
+        RepositoryConfig.from_mapping([("backend", "iotdb")])
+
+
+def test_config_rejects_non_mapping_iotdb_block():
+    import pytest
+
+    with pytest.raises(ValueError, match="iotdb config must be a mapping"):
+        RepositoryConfig.from_mapping({"backend": "iotdb", "iotdb": ["bad"]})
+
+
+def test_config_normalizes_backend_whitespace_and_case():
+    config = RepositoryConfig.from_mapping({"backend": " IoTDB "})
+    assert config.backend == "iotdb"
+
+
 def test_top_level_import_does_not_load_h5py():
     env = dict(os.environ)
     source_root = str(Path(__file__).resolve().parents[1] / "src")

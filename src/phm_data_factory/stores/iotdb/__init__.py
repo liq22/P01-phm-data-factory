@@ -14,6 +14,8 @@ from .bulk import (
     IoTDBImporter,
     build_iotdb_data_manifest,
     build_source_manifest,
+    load_source_manifest,
+    validate_source_manifest,
 )
 
 __all__ = [
@@ -25,5 +27,7 @@ __all__ = [
     "IoTDBSignalStore",
     "IoTDBImporter",
     "build_source_manifest",
+    "load_source_manifest",
+    "validate_source_manifest",
     "build_iotdb_data_manifest",
 ]

@@ -69,6 +69,10 @@ python scripts/import_datasets.py --config config/phm-data.yaml \
 python scripts/verify_metadata.py --config config/phm-data.yaml
 ```
 
+`scripts/import_datasets.py` 与 `phm-data-iotdb import` 都支持复用
+`--source-manifest <json>` 或显式 `--skip-source-manifest`。默认仍完整计算
+hash；跳过时 import report 不提供 dataset identity/digest。
+
 After import, switch `backend: iotdb` and drop `metadata_path` to read purely
 from IoTDB.
 

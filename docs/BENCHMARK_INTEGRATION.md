@@ -2,7 +2,7 @@
 
 本文档面向**把 phm-data-factory 接入各种 benchmark**（故障诊断 / RUL / 异常检测 / 生成式）的接入方，以及**真实工业场景的性能优化**。基于代码现状（file:line 证据），分析为主，给出优化路线图。
 
-> 配套：[INTEGRATION_GUIDE.md](INTEGRATION_GUIDE.md)（接入主指南）、[ARCHITECTURE.md](ARCHITECTURE.md)、[GOAL.md](GOAL.md)
+> 配套：[INTEGRATION_GUIDE.md](INTEGRATION_GUIDE.md)（接入主指南）、[ARCHITECTURE.md](ARCHITECTURE.md)、[GOAL.md](GOAL.md)。PHMFactory v0.3.0 已明确延期该可选 backend；训练 adapter 只在 v0.3.1 的 consumer PR 中维护，本仓库不再分发 overlay。
 
 ---
 
@@ -15,7 +15,7 @@ data-factory 是**只读 PHM 数据访问层**，被 benchmark 与 agent 复用�
 | **data-factory** | IoTDB 元数据查找、信号随机访问、样本验证、JSON CLI、只读 Agent 工具 |
 | **benchmark** | task 切分（DG/CDDG/FS/...）、PyTorch Dataset/DataLoader、采样器、模型、训练器 |
 
-**硬约束**（`docs/GOAL.md`）：benchmark 的 `build_data()` 训练入口**不变**；PHM-Vibench 通过注册 `factory_name: phm_data` 接入，Agent benchmark 只通过 `connect_agent` / `AgentDataTools` 接入。
+**硬约束**（`docs/GOAL.md`）：benchmark 的 `build_data()` 训练入口**不变**；PHMFactory v0.3.1 仅通过 bounded registry adapter 接入，Agent benchmark 只通过 `connect_agent` / `AgentDataTools` 接入。
 
 ---
 
@@ -147,7 +147,7 @@ with build_repository(config) as repo:   # PHMDataRepository
 |---|---|---|
 | API 版本 | 无 SemVer，7 方法名隐式契约（`agent.py:96-111`） | `AgentDataTools` 加 `api_version` 字段并在 `manifest()` 暴露；benchmark 启动时校验 |
 | `SampleMetadata` schema | 21 字段冻结 + 别名（`models.py:90-208`） | 列入显式稳定契约文档；删/改类型算 breaking |
-| overlay 版本 | 锁 base commit 一次性快照（`BASE_COMMIT.txt`） | overlay 加 `factory_version_range`，benchmark 启动协商 |
+| consumer 版本 | consumer 通过 immutable gitlink 固定 provider | consumer 启动时校验 package/API schema 与精确 revision |
 | 只读契约 | 仅 Agent/MCP 路径只读 | Python `PHMDataRepository` 路径加只读 guard（或文档强约束） |
 | 生成式 schema | `Digital_Twin_Prediction` 丢（`iotdb.py:192-208`） | `SCHEMA` 补该字段（BOOLEAN），让生成式 benchmark 可按它过滤 |
 
@@ -169,6 +169,6 @@ with build_repository(config) as repo:   # PHMDataRepository
 
 ## 相关文档
 - [INTEGRATION_GUIDE.md](INTEGRATION_GUIDE.md) — 接入主指南（配置链 / import / tsfile 结论 / R00 接入）
-- [PHMBENCH_INTEGRATION.md](PHMBENCH_INTEGRATION.md) — PHM-Vibench overlay 安装
+- [PHMBENCH_INTEGRATION.md](PHMBENCH_INTEGRATION.md) — PHMFactory v0.3.1 治理接入契约
 - [ARCHITECTURE.md](ARCHITECTURE.md) — 数据流架构
 - [GOAL.md](GOAL.md) — 项目目标与边界（`build_data()` 不变约束来源）

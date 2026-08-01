@@ -139,6 +139,8 @@ phm-data-iotdb import --config config/phm-data.yaml --report import-report.json
 # --sample-id <id> 试导单样本；--chunk-size 控制批次；--continue-on-error 全量容错
 ```
 
+默认会完整计算源文件 SHA-256。大型目录可先用 `source-manifest` 子命令计算一次，后续通过 `--source-manifest <json>` 复用；只有明确接受 `dataset_digest: null` 和不完整 provenance 时才使用 `--skip-source-manifest`。两个参数互斥。
+
 参数说明：
 - `--config`: RepositoryConfig 文件（含 metadata_path/signal_path/iotdb 连接，推荐方式）
 - `--metadata`/`--signals`: 可选，覆盖 config 的路径

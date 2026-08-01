@@ -62,7 +62,19 @@ class IoTDBImporter:
         visible_only=False,
         continue_on_error=False,
         source_manifest: Mapping[str, Any] | None = None,
+        source_manifest_mode: str | None = None,
     ):
+        manifest_mode = source_manifest_mode or (
+            "provided" if source_manifest is not None else "skipped"
+        )
+        if manifest_mode not in {"computed", "provided", "skipped"}:
+            raise ValueError(
+                "source_manifest_mode must be 'computed', 'provided', or 'skipped'"
+            )
+        if manifest_mode == "skipped" and source_manifest is not None:
+            raise ValueError("skipped source manifest mode cannot include a manifest")
+        if manifest_mode != "skipped" and source_manifest is None:
+            raise ValueError(f"{manifest_mode} source manifest mode requires a manifest")
         ids = sample_ids or [
             r.sample_id
             for r in repository.metadata.search(limit=None, visible_only=visible_only)
@@ -82,7 +94,12 @@ class IoTDBImporter:
             "imported": imported,
             "failed": failed,
             "data_manifest": build_iotdb_data_manifest(
-                self.config, repository, imported, failed, source_manifest
+                self.config,
+                repository,
+                imported,
+                failed,
+                source_manifest,
+                source_manifest_mode=manifest_mode,
             ),
         }
 
@@ -114,10 +131,13 @@ def _file_manifest(path: Path) -> dict[str, Any]:
     }
 
 
-def build_source_manifest(metadata_path: str | Path, signal_path: str | Path) -> dict[str, Any]:
+def build_source_manifest(
+    metadata_path: str | Path, signal_path: str | Path
+) -> dict[str, Any]:
     metadata = Path(metadata_path).expanduser().resolve()
     signals = Path(signal_path).expanduser().resolve()
     result: dict[str, Any] = {
+        "schema_version": "phm-data-factory/source-manifest-v1",
         "metadata": _file_manifest(metadata),
         "signals": {
             "path": str(signals),
@@ -144,21 +164,65 @@ def build_source_manifest(metadata_path: str | Path, signal_path: str | Path) ->
     return result
 
 
+def validate_source_manifest(value: Mapping[str, Any]) -> dict[str, Any]:
+    """Validate and normalize a reusable source manifest.
+
+    Accepted inputs are a raw source manifest or a prior import report containing
+    ``data_manifest.source``. Paths are retained for operator traceability, while
+    dataset identity continues to use content fields only.
+    """
+
+    if not isinstance(value, Mapping):
+        raise TypeError("source manifest must be a JSON mapping")
+    payload: Mapping[str, Any] = value
+    if isinstance(payload.get("data_manifest"), Mapping):
+        payload = payload["data_manifest"]
+    if isinstance(payload.get("source"), Mapping):
+        payload = payload["source"]
+    source = dict(payload)
+    metadata = source.get("metadata")
+    signals = source.get("signals")
+    if not isinstance(metadata, Mapping) or not metadata.get("sha256"):
+        raise ValueError("source manifest metadata entry must include sha256")
+    if not isinstance(signals, Mapping):
+        raise ValueError("source manifest signals entry must be a mapping")
+    if signals.get("kind") == "directory":
+        files = signals.get("files")
+        if not isinstance(files, list) or not files:
+            raise ValueError("directory source manifest must include hashed files")
+        if any(not isinstance(item, Mapping) or not item.get("sha256") for item in files):
+            raise ValueError("every source manifest signal file must include sha256")
+    elif not signals.get("sha256"):
+        raise ValueError("file source manifest signals entry must include sha256")
+    source.setdefault("schema_version", "phm-data-factory/source-manifest-v1")
+    return source
+
+
+def load_source_manifest(path: str | Path) -> dict[str, Any]:
+    manifest_path = Path(path).expanduser().resolve()
+    payload = json.loads(manifest_path.read_text(encoding="utf-8"))
+    return validate_source_manifest(payload)
+
+
 def build_iotdb_data_manifest(
     config: IoTDBConfig,
     repository: PHMDataRepository,
     imported: Sequence[Mapping[str, Any]],
     failed: Sequence[Mapping[str, Any]],
     source_manifest: Mapping[str, Any] | None = None,
+    *,
+    source_manifest_mode: str | None = None,
 ) -> dict[str, Any]:
     imported_ids = [str(item["sample_id"]) for item in imported]
     source = dict(source_manifest or {})
     signal_source = dict(source.get("signals") or {})
+    signal_files = signal_source.get("files") or []
     source_is_complete = bool(dict(source.get("metadata") or {}).get("sha256")) and (
         bool(signal_source.get("sha256"))
         or (
             signal_source.get("kind") == "directory"
-            and all(item.get("sha256") for item in signal_source.get("files") or [])
+            and bool(signal_files)
+            and all(item.get("sha256") for item in signal_files)
         )
     )
     identity = (
@@ -176,6 +240,9 @@ def build_iotdb_data_manifest(
         "metadata_path_pattern": f"{config.root}.<dataset>.sample_<Id>.meta.<field>",
         "metadata_fields": [name for name, _ in SCHEMA],
         "source": source,
+        "source_manifest_mode": source_manifest_mode
+        or ("provided" if source else "skipped"),
+        "provenance_complete": source_is_complete,
         "dataset_identity": identity,
         "dataset_digest": identity["dataset_digest"] if identity else None,
         "metadata_fidelity": "lossless_v2",

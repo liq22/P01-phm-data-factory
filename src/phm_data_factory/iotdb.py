@@ -22,6 +22,7 @@ from .stores.iotdb.bulk import (
     IoTDBImporter,
     build_iotdb_data_manifest,
     build_source_manifest,
+    load_source_manifest,
 )
 from .stores.iotdb.config import IoTDBConfig
 from .stores.iotdb.metadata import load_metadata_from_iotdb
@@ -37,6 +38,7 @@ __all__ = [
     "IoTDBSignalStore",
     "IoTDBImporter",
     "build_source_manifest",
+    "load_source_manifest",
     "build_iotdb_data_manifest",
     "main",
     "_resolve_iotdb_config",
@@ -95,7 +97,8 @@ def main(argv: Sequence[str] | None = None) -> int:
     check = sub.add_parser("check")
     ingest = sub.add_parser("import")
     sync = sub.add_parser("sync-metadata")
-    for p in (check, ingest, sync):
+    source = sub.add_parser("source-manifest")
+    for p in (check, ingest, sync, source):
         p.add_argument(
             "--config",
             help="RepositoryConfig file (also read via PHM_DATA_CONFIG env)",
@@ -116,11 +119,28 @@ def main(argv: Sequence[str] | None = None) -> int:
     ingest.add_argument("--visible-only", action="store_true")
     ingest.add_argument("--continue-on-error", action="store_true")
     ingest.add_argument("--report")
+    ingest_manifest = ingest.add_mutually_exclusive_group()
+    ingest_manifest.add_argument(
+        "--source-manifest",
+        help="reuse a complete source manifest JSON instead of hashing source files",
+    )
+    ingest_manifest.add_argument(
+        "--skip-source-manifest",
+        action="store_true",
+        help="skip source hashing; report provenance and dataset digest as incomplete",
+    )
     sync.add_argument(
         "--metadata", help="metadata file (or set via --config / PHM_DATA_CONFIG)"
     )
     sync.add_argument("--continue-on-error", action="store_true")
     sync.add_argument("--report")
+    source.add_argument(
+        "--metadata", help="metadata file (or set via --config / PHM_DATA_CONFIG)"
+    )
+    source.add_argument(
+        "--signals", help="signal dir/file (or set via --config / PHM_DATA_CONFIG)"
+    )
+    source.add_argument("--output", required=True)
     args = parser.parse_args(argv)
     config, rc = _resolve_iotdb_config(args)
     try:
@@ -160,6 +180,15 @@ def main(argv: Sequence[str] | None = None) -> int:
                     "import requires --metadata and --signals "
                     "(or provide them via --config / PHM_DATA_CONFIG)"
                 )
+            if args.source_manifest:
+                source_manifest = load_source_manifest(args.source_manifest)
+                source_manifest_mode = "provided"
+            elif args.skip_source_manifest:
+                source_manifest = None
+                source_manifest_mode = "skipped"
+            else:
+                source_manifest = build_source_manifest(metadata, signals)
+                source_manifest_mode = "computed"
             with PHMDataRepository.from_local(
                 metadata, signals
             ) as repo, IoTDBImporter(config) as importer:
@@ -169,14 +198,15 @@ def main(argv: Sequence[str] | None = None) -> int:
                     args.chunk_size,
                     args.visible_only,
                     args.continue_on_error,
-                    build_source_manifest(metadata, signals),
+                    source_manifest=source_manifest,
+                    source_manifest_mode=source_manifest_mode,
                 )
             if args.report:
                 Path(args.report).write_text(
                     json.dumps(result, ensure_ascii=False, indent=2) + "\n",
                     encoding="utf-8",
                 )
-        else:
+        elif args.command == "sync-metadata":
             from .metadata import MetadataCatalog
             from .stores.iotdb import IoTDBSignalStore
 
@@ -216,6 +246,23 @@ def main(argv: Sequence[str] | None = None) -> int:
                     json.dumps(result, ensure_ascii=False, indent=2) + "\n",
                     encoding="utf-8",
                 )
+        else:
+            metadata = args.metadata or (
+                str(rc.metadata_path) if rc and rc.metadata_path else None
+            )
+            signals = args.signals or (
+                str(rc.signal_path) if rc and rc.signal_path else None
+            )
+            if not metadata or not signals:
+                raise ValueError(
+                    "source-manifest requires --metadata and --signals "
+                    "(or provide them via --config / PHM_DATA_CONFIG)"
+                )
+            result = build_source_manifest(metadata, signals)
+            Path(args.output).write_text(
+                json.dumps(result, ensure_ascii=False, indent=2) + "\n",
+                encoding="utf-8",
+            )
         print(json.dumps(result, ensure_ascii=False, indent=2))
         if args.command == "check" and not result.get("connected"):
             return 3

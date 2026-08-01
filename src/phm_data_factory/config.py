@@ -20,8 +20,10 @@ class RepositoryConfig:
 
     @classmethod
     def from_mapping(cls, mapping: Mapping[str, Any], base_dir: Path | None = None):
+        if not isinstance(mapping, Mapping):
+            raise TypeError("repository config must be a mapping")
         base = base_dir or Path.cwd()
-        backend = str(mapping.get("backend", "iotdb")).lower()
+        backend = str(mapping.get("backend", "iotdb")).strip().lower()
         if backend not in {"local", "iotdb"}:
             raise ValueError(f"Unsupported backend: {backend}")
         resolve = lambda v: (
@@ -43,13 +45,18 @@ class RepositoryConfig:
         max_points = int(mapping.get("default_max_points", 4096))
         if max_points <= 0:
             raise ValueError("default_max_points must be positive")
+        iotdb = mapping.get("iotdb", {})
+        if iotdb is None:
+            iotdb = {}
+        if not isinstance(iotdb, Mapping):
+            raise ValueError("iotdb config must be a mapping")
         return cls(
             backend,
             metadata,
             signals,
             dataset_manifest,
             max_points,
-            dict(mapping.get("iotdb", {})),
+            dict(iotdb),
         )
 
     @classmethod
@@ -64,13 +71,15 @@ class RepositoryConfig:
                 raise RuntimeError("Install phm-data-factory[yaml]") from exc
             data = yaml.safe_load(path.read_text(encoding="utf-8"))
         data = data or {}
+        if not isinstance(data, Mapping):
+            raise ValueError("repository config file must contain a mapping")
         return cls.from_mapping(data, path.parent)
 
     @classmethod
     def from_environment(cls):
         if os.getenv("PHM_DATA_CONFIG"):
             return cls.from_file(os.environ["PHM_DATA_CONFIG"])
-        backend = os.getenv("PHM_DATA_BACKEND", "iotdb")
+        backend = os.getenv("PHM_DATA_BACKEND", "iotdb").strip().lower()
         mapping = {
             "backend": backend,
             "metadata_path": os.getenv("PHM_DATA_METADATA"),

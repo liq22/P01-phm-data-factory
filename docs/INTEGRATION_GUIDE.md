@@ -75,6 +75,11 @@ phm-data-iotdb import --config config/phm-data.yaml --report import-report.json
 
 `--report` 生成的 `data_manifest`（schema_version / root / signal_path_pattern / source hashes / imported/failed sample_ids）可作论文证据链。
 
+默认导入完整计算 source hashes。大型 HDF5 目录可执行
+`phm-data-iotdb source-manifest --config <yaml> --output <json>` 后用
+`--source-manifest <json>` 复用。`--skip-source-manifest` 是显式快速模式，
+报告会标记 `provenance_complete: false` 且不生成 dataset digest。
+
 ### 步骤 4：接入数据访问层（三选一）
 
 ```bash
@@ -161,6 +166,6 @@ skills 是**知识包 + 自检工具**，不是 data-factory 的可执行数据�
 - [QUICKSTART_ZH.md](QUICKSTART_ZH.md) — 快速开始
 - [BENCHMARK_INTEGRATION.md](BENCHMARK_INTEGRATION.md) — benchmark 接入与工业场景优化
 - [IOTDB_GUIDE.md](IOTDB_GUIDE.md) — IoTDB 启动与四阶段验收
-- [PHMBENCH_INTEGRATION.md](PHMBENCH_INTEGRATION.md) — PHM-Vibench overlay 集成契约
+- [PHMBENCH_INTEGRATION.md](PHMBENCH_INTEGRATION.md) — PHMFactory v0.3.1 治理接入契约
 - [GOAL.md](GOAL.md) — 项目目标与边界
 - [../examples/README.md](../examples/README.md) — 配置、MCP、notebook 示例导航

@@ -1,3 +1,0 @@
-PHMbench/PHM-Vibench
-base commit: a331769d4005018bc833534ecf4efeb5e8a5a78d
-branch used during preparation: main

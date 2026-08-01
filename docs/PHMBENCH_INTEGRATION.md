@@ -1,50 +1,50 @@
-# PHM-Vibench training backend
+# PHMFactory v0.3.1 backend integration
 
-PHM-Vibench owns dataset selection, splitting, windowing, Dataset/DataLoader,
+PHMFactory owns dataset selection, splitting, windowing, Dataset/DataLoader,
 tasks and trainers. `phm-data-factory` supplies typed metadata and dense signal
-arrays through the unchanged `build_data(args_data, args_task)` entry point.
+arrays; it does not replace PHMFactory runtime behavior.
 
-## Install the exact provider revision
+## Release boundary
 
-Both PHM-Vibench and phm-agent-benchmark must pin the same `v0.2.0` commit as a
-Git submodule. From PHM-Vibench:
+PHMFactory v0.3.0 deliberately defers this optional backend. The governed
+v0.3.1 integration must use:
 
-```bash
-git submodule update --init packages/phm-data-factory
-pip install -e 'packages/phm-data-factory[yaml,legacy]'
+```text
+repository: https://github.com/PHMbench/phm-data-factory.git
+path:       packages/phm-data-factory
+pin:        one immutable reviewed commit, with no branch tracking
+license:    Apache-2.0
 ```
 
-## Configure training
+The provider repository does not vendor or publish a consumer overlay. The
+authoritative adapter and tests live in the PHMFactory pull request so they can
+be reviewed against the current protected runtime.
+
+## Adapter contract
+
+The future configuration surface is:
 
 ```yaml
 data:
   factory_name: phm_data
   phm_data_config: configs/data/cwru-iotdb.yaml
-  dataset_name: CWRU  # optional; used in output naming
   batch_size: 32
   num_workers: 4
 ```
 
-`phm_data_config` is required and may select either `local` or `iotdb`.
-There is no silent fallback to `data_dir`/`metadata_file`. Other factory names
-retain the legacy requirements.
+Selecting `phm_data` requires `phm_data_config` and lazily imports an installed
+`phm_data_factory` package. The adapter must not mutate `sys.path`, initialize
+the submodule automatically, modify the base data-factory lifecycle, or fall
+back silently. Existing factory names continue to require their legacy
+`data_dir` and `metadata_file` fields.
 
-The registered factory obtains metadata with
-`repo.metadata_frame("phm_vibench_v1")` and signals with `repo.read_signal()`.
-IoTDB metadata must be typed v2; if an older import is detected, run:
+The adapter reads typed metadata with
+`repo.metadata_frame("phm_vibench_v1")` and dense arrays with
+`repo.read_signal()`. Older indexed IoTDB metadata must first be upgraded with:
 
 ```bash
 phm-data-iotdb sync-metadata --config config/phm-data.yaml --report metadata-sync.json
 ```
 
-## Optional Agent access
-
-```python
-from src.data_factory import build_agent_data_tools
-
-with build_agent_data_tools(args.data) as tools:
-    print(tools.search_samples(task="fault_diagnosis", limit=10))
-```
-
-This helper defaults to `benchmark_public`: visible samples only, no label or
-target fields, bounded windows, and no write/import operation.
+Agent access remains separate and read-only through `connect_agent` or MCP;
+IoTDB import is never exposed as an Agent tool.
