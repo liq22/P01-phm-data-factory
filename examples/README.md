@@ -2,10 +2,14 @@
 
 这里放可直接复用的配置和使用示例。真实路径建议写到本地 `config/phm-data.yaml`，不要提交到仓库。
 
+推荐阅读顺序：先看 `WORKFLOWS.md` 选运行流程，再复制配置样例，最后按需打开 notebook。
+
 | 文件 | 用途 |
 |---|---|
+| `WORKFLOWS.md` | local smoke、导入 IoTDB、纯 IoTDB runtime、MCP/Agent 四条流程 |
 | `phm-data.iotdb.yaml` | 纯 IoTDB 运行时配置示例，适合日常查询、MCP、Agent |
 | `phm-data.local.yaml` | local metadata/HDF5 过渡配置示例，适合迁移前快速试读 |
+| `iotdb_backend_quickstart.py` | v0.2 稳定合同 Python 示例：`connect` / `read_signal` / `write_sample` |
 | `iotdb_python_read_write.ipynb` | Python 读写 IoTDB notebook：factory API + 受控底层 Session 示例 |
 | `mcp-client.json` | MCP client 配置示例 |
 | `agent-manifest.json` | 只读 Agent 工具 manifest 示例 |

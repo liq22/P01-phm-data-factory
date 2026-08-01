@@ -1,6 +1,12 @@
-from .base import SignalStore
+from .base import SignalStore, WritableSignalStore
 
-__all__ = ["SignalStore", "H5SignalStore", "DirectoryH5SignalStore", "H5DataDict"]
+__all__ = [
+    "SignalStore",
+    "WritableSignalStore",
+    "H5SignalStore",
+    "DirectoryH5SignalStore",
+    "H5DataDict",
+]
 
 
 def __getattr__(name: str):

@@ -21,7 +21,7 @@ Legacy `metadata.xlsx/CSV + HDF5` 仅用于一次性迁移进 IoTDB。
 | Python 读写 IoTDB 示例 | [examples/iotdb_python_read_write.ipynb](examples/iotdb_python_read_write.ipynb) |
 | benchmark 接入与工业优化 | [docs/BENCHMARK_INTEGRATION.md](docs/BENCHMARK_INTEGRATION.md) |
 | IoTDB 启动与验收 | [docs/IOTDB_GUIDE.md](docs/IOTDB_GUIDE.md) |
-| PHM-Vibench overlay | [docs/PHMBENCH_INTEGRATION.md](docs/PHMBENCH_INTEGRATION.md) |
+| PHMFactory v0.3.1 governed integration | [docs/PHMBENCH_INTEGRATION.md](docs/PHMBENCH_INTEGRATION.md) |
 
 ## 安装
 
@@ -75,16 +75,28 @@ phm-data --config config/phm-data.yaml window 1 --start 0 --end 12000 --channels
 phm-data --config config/phm-data.yaml metadata 1
 ```
 
-Python：
+Python（Agent/MCP 默认使用 benchmark-safe 公共视图）：
 
 ```python
-from phm_data_factory import AgentDataTools, RepositoryConfig, build_repository
+from phm_data_factory import connect_agent
 
-config = RepositoryConfig.from_file("config/phm-data.yaml")
-with build_repository(config) as repo:
-    tools = AgentDataTools(repo, config.default_max_points)
+with connect_agent("config/phm-data.yaml") as tools:
     print(tools.search_samples(task="fault_diagnosis", limit=10))
 ```
+
+一行接入（v0.2 稳定后端契约，见 [docs/API_CONTRACT.md](docs/API_CONTRACT.md) + [docs/IOTDB_BACKEND.md](docs/IOTDB_BACKEND.md)）：
+
+```python
+from phm_data_factory import connect
+
+with connect("config/phm-data.yaml") as repo:   # local 与 iotdb 后端同一抽象
+    rows = repo.search_samples({"name": "RM_001_CWRU"}, limit=10)
+    x    = repo.read_signal("1", 0, 4096, channels=[0, 1])   # ndarray，不降采样
+    # 仅 iotdb 后端可写（HDF5 只读）：
+    repo.write_sample("new_id", x, metadata=rows[0], mode="error")
+```
+
+`backend: iotdb` 且省略 `metadata_path` 时，元数据从 IoTDB 的 `.meta` 设备读，**换机不再需要本地 `metadata.xlsx`**。新增任务标志 `digital_twin_prediction`（生成式 benchmark 可按列过滤）。
 
 IoTDB 路径布局：
 
@@ -103,7 +115,27 @@ phm-data-iotdb import --config config/phm-data.yaml --report import-report.json
 # --sample-id <id> 指定单样本试导；--continue-on-error 全量容错；--chunk-size 控制批次
 ```
 
-`--report` 生成的 `data_manifest`（schema_version / root / signal_path_pattern / source hashes / imported/failed ids）可作论文证据链。
+`--report` 生成 v2 `data_manifest`，包含路径无关的 `dataset_identity` / `dataset_digest`、source hashes 与 imported/failed ids。
+
+默认导入会完整计算源文件 SHA-256。大数据集可先计算一次并复用，或显式选择快速模式：
+
+```bash
+phm-data-iotdb source-manifest --config config/phm-data.yaml --output source-manifest.json
+phm-data-iotdb import --config config/phm-data.yaml \
+  --source-manifest source-manifest.json --report import-report.json
+
+# 明确接受 provenance 不完整时才使用；报告中的 dataset_digest 为 null
+phm-data-iotdb import --config config/phm-data.yaml \
+  --skip-source-manifest --report fast-import-report.json
+```
+
+`--source-manifest` 与 `--skip-source-manifest` 互斥；快速模式不会伪造 dataset identity。
+
+已有 IoTDB 信号可仅补元数据，不重写 93GB 波形：
+
+```bash
+phm-data-iotdb sync-metadata --config config/phm-data.yaml --report metadata-sync.json
+```
 
 ## check 返回码
 
@@ -145,9 +177,9 @@ Client 配置（Claude Desktop / Cursor 等 MCP client）：
 
 > skills 是**知识包 + 自检工具**，不替代 MCP/CLI/AgentDataTools 的数据通道。tsfile 离线装载经评估**不接入** factory tree 链（table/tree schema 不匹配），详见 [接入指南](docs/INTEGRATION_GUIDE.md) 第四节。
 
-## PHM-Vibench 桥接
+## PHMFactory 桥接
 
-`integration/phm_vibench/` 含薄适配器，仅新增 `build_data_repository` 和 `build_agent_data_tools`；现有 `build_data()` 训练入口不变。详见 [PHMBENCH_INTEGRATION.md](docs/PHMBENCH_INTEGRATION.md)。
+本仓库只提供稳定 provider contract，不再内嵌会漂移的 consumer overlay。PHMFactory v0.3.0 明确不集成该 backend；v0.3.1 通过组织仓库、immutable gitlink 和 bounded adapter PR 接入。详见 [PHMBENCH_INTEGRATION.md](docs/PHMBENCH_INTEGRATION.md)。
 
 ## 文档导航
 
@@ -155,11 +187,13 @@ Client 配置（Claude Desktop / Cursor 等 MCP client）：
 |---|---|
 | [QUICKSTART_ZH.md](docs/QUICKSTART_ZH.md) | 中文 10 分钟上手 |
 | [INTEGRATION_GUIDE.md](docs/INTEGRATION_GUIDE.md) | **接入主指南**：配置链、import、tsfile 结论、R00 接入、故障排查 |
+| [API_CONTRACT.md](docs/API_CONTRACT.md) | **v0.2 稳定后端契约**：connect + 4 op + 分级 + 弃用策略 |
+| [IOTDB_BACKEND.md](docs/IOTDB_BACKEND.md) | **IoTDB 后端开发指南**：connect / read_signal / write_sample / 直接 store |
 | [BENCHMARK_INTEGRATION.md](docs/BENCHMARK_INTEGRATION.md) | **benchmark 接入 + 工业优化**：8 环节+缺口、Python 3 姿态、在线/离线瓶颈与优化 |
 | [IOTDB_GUIDE.md](docs/IOTDB_GUIDE.md) | IoTDB 启动（docker / WSL2 直跑）+ 四阶段验收 |
 | [ARCHITECTURE.md](docs/ARCHITECTURE.md) | 数据流架构 |
 | [GOAL.md](docs/GOAL.md) | 项目目标与边界 |
-| [PHMBENCH_INTEGRATION.md](docs/PHMBENCH_INTEGRATION.md) | PHM-Vibench overlay 安装 |
+| [PHMBENCH_INTEGRATION.md](docs/PHMBENCH_INTEGRATION.md) | PHMFactory v0.3.1 治理接入契约 |
 | [VALIDATION.md](docs/VALIDATION.md) | 版本验证范围 |
 
 配置模板：[config/phm-data.sample.yaml](config/phm-data.sample.yaml) · [examples/phm-data.iotdb.yaml](examples/phm-data.iotdb.yaml) · [examples/phm-data.local.yaml](examples/phm-data.local.yaml)

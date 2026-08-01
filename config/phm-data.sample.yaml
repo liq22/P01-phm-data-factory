@@ -1,11 +1,15 @@
 # phm-data-factory 运行时配置模板。
 # 拷贝为 config/phm-data.yaml（该文件已 gitignore）后填入真实路径。
+# 之后 `from phm_data_factory import connect; repo = connect("config/phm-data.yaml")` 即用。
 
-backend: local  # 或 iotdb（导入完成后切换）
+backend: local  # 或 iotdb（导入完成后切换；两端同一 PHMDataRepository 抽象）
 
-# local 后端必填；iotdb 后端可省（省略即纯 IoTDB，保留则 metadata 走文件）
+# local 后端必填；iotdb 后端可省（省略即纯 IoTDB——元数据从 IoTDB 的 .meta 设备读，无需本地 xlsx）
 metadata_path: /abs/path/to/metadata.xlsx
 signal_path: /abs/path/to/signals_dir
+
+# Agent benchmark 运行时身份；可直接指向 import --report 输出。
+dataset_manifest_path: /abs/path/to/import-report.json
 
 default_max_points: 4096
 

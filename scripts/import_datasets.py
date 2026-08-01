@@ -30,6 +30,16 @@ def main(argv=None) -> int:
     p.add_argument("--continue-on-error", action="store_true", help="失败样本跳过继续（写入 failed）")
     p.add_argument("--chunk-size", type=int, default=10000)
     p.add_argument("--report", help="写入 import-report JSON 路径")
+    manifest_group = p.add_mutually_exclusive_group()
+    manifest_group.add_argument(
+        "--source-manifest",
+        help="复用完整 source manifest JSON，避免重复计算大文件哈希",
+    )
+    manifest_group.add_argument(
+        "--skip-source-manifest",
+        action="store_true",
+        help="显式跳过源文件哈希；报告中的 dataset_digest 将为空",
+    )
     args = p.parse_args(argv)
 
     from phm_data_factory import RepositoryConfig, PHMDataRepository
@@ -37,6 +47,7 @@ def main(argv=None) -> int:
         IoTDBConfig,
         IoTDBImporter,
         build_source_manifest,
+        load_source_manifest,
         load_metadata_from_iotdb,
     )
 
@@ -83,7 +94,15 @@ def main(argv=None) -> int:
         return 0
 
     # 3. 导入（串行；Session 非 thread-safe，勿并发共享）
-    source_manifest = build_source_manifest(config.metadata_path, config.signal_path)
+    if args.source_manifest:
+        source_manifest = load_source_manifest(args.source_manifest)
+        source_manifest_mode = "provided"
+    elif args.skip_source_manifest:
+        source_manifest = None
+        source_manifest_mode = "skipped"
+    else:
+        source_manifest = build_source_manifest(config.metadata_path, config.signal_path)
+        source_manifest_mode = "computed"
     with IoTDBImporter(db) as importer:
         result = importer.import_repository(
             repo,
@@ -92,6 +111,7 @@ def main(argv=None) -> int:
             visible_only=False,
             continue_on_error=args.continue_on_error,
             source_manifest=source_manifest,
+            source_manifest_mode=source_manifest_mode,
         )
 
     if args.report:

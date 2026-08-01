@@ -9,6 +9,7 @@ from phm_data_factory.iotdb import (
     IoTDBImporter,
     IoTDBPathCodec,
     build_source_manifest,
+    load_source_manifest,
 )
 from phm_data_factory.models import SampleMetadata
 
@@ -144,12 +145,14 @@ def test_import_repository_includes_iotdb_data_manifest(repository, monkeypatch)
     )
 
     manifest = report["data_manifest"]
-    assert manifest["schema_version"] == "phm-data-factory/iotdb-data-manifest-v1"
+    assert manifest["schema_version"] == "phm-data-factory/iotdb-data-manifest-v2"
     assert manifest["root"] == "root.paper"
     assert manifest["path_model"] == "tree"
     assert manifest["source"]["metadata"]["sha256"] == "metadata-digest"
     assert manifest["imported_sample_ids"] == ["1"]
     assert manifest["failed_sample_ids"] == []
+    assert manifest["source_manifest_mode"] == "provided"
+    assert manifest["provenance_complete"] is False
 
 
 def test_source_manifest_hashes_metadata_and_signal_files(local_data):
@@ -158,3 +161,45 @@ def test_source_manifest_hashes_metadata_and_signal_files(local_data):
     assert manifest["metadata"]["sha256"]
     assert manifest["signals"]["kind"] == "file"
     assert manifest["signals"]["sha256"]
+    assert manifest["schema_version"] == "phm-data-factory/source-manifest-v1"
+
+
+def test_source_manifest_can_be_reused_from_import_report(local_data, tmp_path):
+    metadata, signals = local_data
+    source = build_source_manifest(metadata, signals)
+    report = tmp_path / "import-report.json"
+    report.write_text(
+        __import__("json").dumps({"data_manifest": {"source": source}}),
+        encoding="utf-8",
+    )
+    assert load_source_manifest(report) == source
+
+
+def test_source_manifest_rejects_incomplete_content(tmp_path):
+    path = tmp_path / "manifest.json"
+    path.write_text(
+        '{"metadata":{"sha256":"ok"},"signals":{"kind":"file"}}',
+        encoding="utf-8",
+    )
+    import pytest
+
+    with pytest.raises(ValueError, match="signals entry must include sha256"):
+        load_source_manifest(path)
+
+
+def test_empty_signal_directory_does_not_claim_complete_provenance(repository):
+    from phm_data_factory.iotdb import build_iotdb_data_manifest
+
+    manifest = build_iotdb_data_manifest(
+        IoTDBConfig(root="root.paper"),
+        repository,
+        [],
+        [],
+        {
+            "metadata": {"sha256": "metadata-digest"},
+            "signals": {"kind": "directory", "files": []},
+        },
+        source_manifest_mode="provided",
+    )
+    assert manifest["provenance_complete"] is False
+    assert manifest["dataset_digest"] is None

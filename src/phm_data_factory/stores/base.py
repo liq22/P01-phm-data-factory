@@ -1,8 +1,14 @@
-"""Signal storage protocol."""
+"""Signal storage protocol.
+
+`SignalStore` is the read-only contract every backend implements.
+`WritableSignalStore` is an *optional* capability Protocol — backends that can
+accept writes (e.g. IoTDB) implement it; read-only backends (e.g. HDF5) do not.
+The repository capability-checks with `isinstance(store, WritableSignalStore)`.
+"""
 
 from __future__ import annotations
 from abc import ABC, abstractmethod
-from typing import Iterable, Sequence
+from typing import Any, Iterable, Mapping, Protocol, Sequence, runtime_checkable
 import numpy as np
 
 
@@ -36,3 +42,24 @@ class SignalStore(ABC):
 
     def __exit__(self, exc_type, exc_val, exc_tb):
         self.close()
+
+
+@runtime_checkable
+class WritableSignalStore(Protocol):
+    """Optional write capability for a SignalStore.
+
+    `mode`: ``"error"`` raises if the sample already exists; ``"overwrite"``
+    replaces it. Deletion of an existing sample is scoped inside ``write`` and
+    is NOT a separate public API (v0.2 contract).
+    """
+
+    def write(
+        self,
+        sample_id: str | int,
+        values: np.ndarray,
+        *,
+        metadata: Mapping[str, Any] | None = None,
+        mode: str = "error",
+        **kwargs: Any,
+    ) -> Mapping[str, Any]: ...
+

@@ -1,4 +1,7 @@
+# Pure IoTDB runtime config.
+# metadata_path / signal_path intentionally omitted: catalog is loaded from .meta devices.
 backend: iotdb
+dataset_manifest_path: /abs/path/to/import-report.json
 default_max_points: 4096
 iotdb:
   host: 127.0.0.1
