@@ -3,6 +3,7 @@
 from .agent import AgentDataTools
 from .config import RepositoryConfig, build_repository, connect, connect_agent
 from .contract import agent_contract_manifest
+from .data_port import AgentDataPort, StreamCursor
 from .identity import build_dataset_identity, load_dataset_identity
 from .metadata import MetadataAccessor, MetadataCatalog, read_metadata, smart_read_csv
 from .models import SampleMetadata, SignalWindow
@@ -12,6 +13,8 @@ from .stores import SignalStore, WritableSignalStore
 __version__ = "0.2.0"
 __all__ = [
     "AgentDataTools",
+    "AgentDataPort",
+    "StreamCursor",
     "RepositoryConfig",
     "build_repository",
     "connect",
