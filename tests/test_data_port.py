@@ -9,7 +9,9 @@ from phm_data_factory import (
     AgentDataPort,
     AgentDataTools,
     PHMDataRepository,
+    __version__,
 )
+from phm_data_factory.contract import PACKAGE_VERSION
 
 
 PRIVATE_SAMPLE_FIELDS = {
@@ -49,6 +51,41 @@ def _registered_port(
             ]
         },
     )
+
+
+def test_versioned_facade_preserves_v02_legacy_manifest(repository):
+    legacy = AgentDataTools(repository).manifest()
+    port = _port(repository)
+
+    assert __version__ == PACKAGE_VERSION == "0.2.1"
+    assert legacy["package_version"] == "0.2.1"
+    assert legacy["tools"] == [
+        "repository_summary",
+        "list_datasets",
+        "search_samples",
+        "get_sample_metadata",
+        "get_signal_window",
+        "get_signal_statistics",
+        "validate_sample",
+    ]
+    assert port.manifest() == {
+        "provider": "phm-data-factory",
+        "package_version": "0.2.1",
+        "api_schema_version": "1.0.0",
+        "capability_schema_version": "1.0.0",
+        "backend_kind": "local_hdf5",
+        "read_only": True,
+        "capabilities": {
+            "search_samples": True,
+            "describe_sample": True,
+            "bounded_window": True,
+            "window_statistics": True,
+            "stream_cursor": True,
+            "modalities": ["continuous_series"],
+            "timestamp_bases": ["sample_index"],
+            "label_visibility_policy": "public_evaluator_private_v1",
+        },
+    }
 
 
 def test_public_search_and_description_strip_private_target_fields(repository):

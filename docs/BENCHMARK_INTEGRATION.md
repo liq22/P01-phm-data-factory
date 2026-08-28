@@ -15,7 +15,7 @@ data-factory 是**只读 PHM 数据访问层**，被 benchmark 与 agent 复用�
 | **data-factory** | IoTDB 元数据查找、信号随机访问、样本验证、JSON CLI、只读 Agent 工具 |
 | **benchmark** | task 切分（DG/CDDG/FS/...）、PyTorch Dataset/DataLoader、采样器、模型、训练器 |
 
-**硬约束**（`docs/GOAL.md`）：benchmark 的 `build_data()` 训练入口**不变**；PHMFactory v0.3.1 仅通过 bounded registry adapter 接入，Agent benchmark 只通过 `connect_agent` / `AgentDataTools` 接入。
+**硬约束**（`docs/GOAL.md`）：benchmark 的 `build_data()` 训练入口**不变**；PHMFactory v0.3.1 仅通过 bounded registry adapter 接入，Agent benchmark 通过 `AgentDataTools` 或 `AgentDataPort` 接入。
 
 ---
 
@@ -28,9 +28,9 @@ data-factory 是**只读 PHM 数据访问层**，被 benchmark 与 agent 复用�
 | ③ | task 语义 | `search_samples(task=fault/anomaly/rul)` + 别名（`agent.py:40-50`）；未知 task 抛错 | 自己跑 DG/CDDG/FS 切分（`task.type`） | **factory task 与 benchmark `task.type` 正交两套**；命名不一致（`rul_prediction` ≠ `remaining_life`） |
 | ④ | split | **不做**（`GOAL.md` 明确） | 全权负责 train/val/test + 切域 | 设计正确；`summary()` 不报 split 比例（需 benchmark 文档明示） |
 | ⑤ | 性能基线 | `skills/iotdb/scripts/performance_test.py`；`check` 返回码 0/2/3（`iotdb.py:528-581`） | 接入前跑 `phm-data-iotdb check` | 缺基准阈值文档；`summary()` 对 IoTDB 大库慢（`availability_is_cheap=False`，`repository.py:38`） |
-| ⑥ | 版本兼容 | 包版本 `0.2.0`；Agent API/capability schema `1.0.0`；两个消费者固定同一 Git commit | 校验 submodule SHA 与 manifest major | `api_version="0.2"` 只保留一个小版本 |
+| ⑥ | 版本兼容 | 包版本 `0.2.1`；Agent API/capability schema `1.0.0`；DataPort 声明 stream cursor capability | 固定 provider revision 并校验 package/API/capability version | `api_version="0.2"` 仅为兼容别名 |
 | ⑦ | 只读契约 | `benchmark_public` 强制 visible-only、标签移除和 bounded window；MCP 固定使用该 profile | evaluator 私有标签由 benchmark 自己持有 | 管理员 import/sync 不进入 Agent 工具面 |
-| ⑧ | 离线/在线 | local/IoTDB 都实现 repository；PHM-Vibench `phm_data` factory 可直接训练 | 保留原 split/Dataset/DataLoader | 流式与离散/event 模态仍是显式后续 gate |
+| ⑧ | 离线/在线 | local/IoTDB 都实现 repository；DataPort 提供有界、可恢复的连续序列 cursor | 保留原 split/Dataset/DataLoader | 离散/event 模态与服务端原生流仍是后续 gate |
 
 ---
 
@@ -41,7 +41,8 @@ data-factory 是**只读 PHM 数据访问层**，被 benchmark 与 agent 复用�
 | 姿态 | 适用 | 入口 |
 |---|---|---|
 | **CLI 子进程** | 跨语言 / shell agent | `phm-data --config <yaml> <cmd>`（`cli.py:51-127`） |
-| **Python 直调 AgentDataTools** | 同进程 benchmark / 实验脚本（最低延迟，可传 RepositoryConfig 对象） | `build_repository(config)` + `AgentDataTools(repo, max_points)` |
+| **Python 直调 AgentDataTools** | 同进程 metadata/window 工具调用 | `build_repository(config)` + `AgentDataTools(repo, max_points)` |
+| **Python 直调 AgentDataPort** | bounded episode、opaque replay 和 cursor 恢复 | `AgentDataPort(AgentDataTools(repo, max_points))` |
 | **MCP client** | 外部 LLM agent（Cursor / Claude Desktop） | `phm-data-mcp --config <yaml>`（`examples/mcp-client.json`） |
 
 ### 最小代码（Python 直调，推荐）
@@ -56,6 +57,24 @@ with connect_agent("config/phm-data.yaml") as tools:
     win  = tools.get_signal_window("1", 0, 1024, max_points=512)  # 重：bounded 信号窗口
     stats = tools.get_signal_statistics("1")                # 重：per-channel 统计
 ```
+
+### Bounded episode 与 replay
+
+```python
+from phm_data_factory import AgentDataPort, AgentDataTools, connect
+
+repository = connect("config/phm-data.yaml")
+with AgentDataPort(AgentDataTools(repository, 4096)) as data:
+    public = data.search_samples({"task": "fault_diagnosis"}, limit=10)
+    cursor = data.open_stream(
+        {"stream_id": public[0]["sample_id"], "channels": [0], "max_points": 1024}
+    )
+    window = cursor.next()
+```
+
+`AgentDataPort.manifest()` reports package `0.2.1`, schema `1.0.0`, and
+`stream_cursor=true`. Registered replay streams expose opaque sample IDs only
+after each cursor step releases them.
 
 ### 7 方法轻重特征
 
@@ -145,7 +164,7 @@ with build_repository(config) as repo:   # PHMDataRepository
 
 | 机制 | 现状 | 建议 |
 |---|---|---|
-| API 版本 | 无 SemVer，7 方法名隐式契约（`agent.py:96-111`） | `AgentDataTools` 加 `api_version` 字段并在 `manifest()` 暴露；benchmark 启动时校验 |
+| API 版本 | package `0.2.1`，API/capability schema `1.0.0`，旧 `api_version="0.2"` 为兼容别名 | benchmark 启动时校验 package 与两个 schema major |
 | `SampleMetadata` schema | 21 字段冻结 + 别名（`models.py:90-208`） | 列入显式稳定契约文档；删/改类型算 breaking |
 | consumer 版本 | consumer 通过 immutable gitlink 固定 provider | consumer 启动时校验 package/API schema 与精确 revision |
 | 只读契约 | 仅 Agent/MCP 路径只读 | Python `PHMDataRepository` 路径加只读 guard（或文档强约束） |
@@ -157,7 +176,7 @@ with build_repository(config) as repo:   # PHMDataRepository
 
 | 优先级 | 缺口 | 理由 |
 |---|---|---|
-| **P0** | API SemVer（`api_version` + manifest + deprecation 周期） | 7 方法名是所有 benchmark 的唯一稳定面，无版本协商 = 静默破损 |
+| **P0** | consumer 启动时执行 manifest compatibility check | provider 已声明 package/API/capability version，consumer 仍需拒绝不兼容 major |
 | **P0** | `Digital_Twin_Prediction` 补进 `IoTDBImporter.SCHEMA` | 生成式 benchmark 当前接不进（落 extra 无法过滤） |
 | **P1** | SessionPool 化 `IoTDBSession`（复用 skill `ConnectionPool`） | 在线场景最大瓶颈，零侵入改造，skill 资产现成 |
 | **P1** | 迭代器读 / 服务端降采样（替代 `todf` 一次性） | 在线 + 离线共用读路径，内存与传输双省 |

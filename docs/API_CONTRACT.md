@@ -59,12 +59,33 @@ scalar values and rejects reduced-fidelity IoTDB v1 metadata.
 
 ### Agent DataPort 1.0
 
-`connect_agent(config, profile="benchmark_public", dataset_digest=None)` returns
-context-managed, read-only `AgentDataTools`. Its manifest reports package
-version `0.2.0`, API/capability schema `1.0.0`, concrete backend/dataset identity,
+`connect_agent(config, profile="benchmark_public")` returns context-managed,
+read-only `AgentDataTools`. Its manifest reports package version `0.2.1`,
+API/capability schema `1.0.0`, concrete backend identity,
 continuous-series/sample-index capabilities, and label visibility policy.
 `benchmark_public` forces visible-only search, rejects private filters and
 unlisted IDs, and removes label/target fields. MCP is locked to this profile.
+
+Package `0.2.1` also exports `AgentDataPort` and `StreamCursor` for bounded
+benchmark episodes. This facade adds structured `search_samples`, public
+`describe_sample`, exact bounded `read_window`, artifact-scoped
+`summarize_window`, and resumable `open_stream` operations without changing the
+existing `AgentDataTools` surface:
+
+```python
+from phm_data_factory import AgentDataPort, AgentDataTools, connect
+
+repository = connect("config/phm-data.yaml")
+with AgentDataPort(AgentDataTools(repository, 4096)) as data:
+    cursor = data.open_stream(
+        {"stream_id": "1", "channels": [0], "max_points": 1024}
+    )
+    first = cursor.next()
+```
+
+The DataPort manifest advertises `stream_cursor=true`. Registered replay
+streams release opaque sample IDs in order; search and reads expose only
+members already released by the cursor.
 
 ## Not in the v0.2 contract (Internal / Admin / deferred)
 
@@ -75,7 +96,7 @@ unlisted IDs, and removes label/target fields. MCP is locked to this profile.
 | `validate_sample`, `summary`, `list_datasets` | Internal | Used by CLI/Agent; not a training dependency. |
 | `SignalStore.write` capability | n/a | Capability Protocol; reachable only via `repo.write_sample`. |
 | `delete` / sample deletion | **Admin** | Not a public method in v0.2; `write_sample(..., mode="overwrite")` covers replace. |
-| `read_iter` streaming | deferred (P2) | Internal `read` is already iterator-based. |
+| store-level `read_iter` | deferred (P2) | Separate from the bounded AgentDataPort cursor introduced in package 0.2.1. |
 | `AgentDataTools` / MCP tools | Internal | Read-only; no write tool is exposed. |
 
 ## Capability Protocols (`phm_data_factory.stores.base`)
@@ -86,7 +107,7 @@ unlisted IDs, and removes label/target fields. MCP is locked to this profile.
 
 ## Versioning & deprecation policy
 
-- Training contract is v0.2. Agent schema is reported by
+- Package `0.2.1` retains training contract v0.2. Agent schema is reported by
   `api_schema_version="1.0.0"`; `api_version="0.2"` is a one-minor deprecated
   compatibility alias.
 - **Stable** symbols: breaking changes require a contract major bump and one
