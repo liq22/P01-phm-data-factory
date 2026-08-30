@@ -33,6 +33,39 @@ class PHMDataRepository:
         )
         return cls(metadata, signals)
 
+    @classmethod
+    def from_csv_directory(
+        cls,
+        metadata_path: str | Path,
+        signal_root: str | Path,
+        *,
+        value_columns: Sequence[str],
+        source_columns: Sequence[str] | None = None,
+        segment_start_field: str | None = None,
+    ):
+        """Open a read-only one-CSV-per-record release.
+
+        Metadata owns the private relative file mapping and exact logical
+        sample length. ``source_columns`` freezes the complete raw schema,
+        while ``value_columns`` freezes the smaller public channel order.
+        ``segment_start_field`` maps a logical contiguous segment to a private
+        row offset without changing the public DataPort contract.
+        """
+
+        from .stores.csv import DirectoryCSVSignalStore
+
+        metadata = MetadataCatalog.from_file(metadata_path)
+        return cls(
+            metadata,
+            DirectoryCSVSignalStore(
+                signal_root,
+                metadata,
+                value_columns=value_columns,
+                source_columns=source_columns,
+                segment_start_field=segment_start_field,
+            ),
+        )
+
     def summary(self) -> dict[str, Any]:
         result = self.metadata.summary()
         result["signal_store"] = type(self.signals).__name__
@@ -197,7 +230,15 @@ class PHMDataRepository:
                 "errors": ["Signal data is missing"],
                 "warnings": [],
             }
-        shape = self.signals.shape(sample_id)
+        try:
+            shape = self.signals.shape(sample_id)
+        except (OSError, ValueError) as exc:
+            return {
+                "sample_id": str(sample_id),
+                "valid": False,
+                "errors": [str(exc)],
+                "warnings": [],
+            }
         channels = 1 if len(shape) == 1 else int(shape[1])
         if record.sample_length is not None and shape[0] != record.sample_length:
             errors.append("Sample length mismatch")

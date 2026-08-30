@@ -87,6 +87,36 @@ The DataPort manifest advertises `stream_cursor=true`. Registered replay
 streams release opaque sample IDs in order; search and reads expose only
 members already released by the cursor.
 
+### Explicit read-only CSV release
+
+Datasets distributed as one CSV per measurement record may use the explicit
+repository constructor below. Metadata owns the private relative filename,
+logical sample length, and optional contiguous-segment start; callers freeze
+the complete source header and the smaller public channel projection. The
+store rejects path traversal, header drift, short files, nonnumeric values,
+invalid segment offsets, and out-of-range channels.
+
+```python
+from phm_data_factory import AgentDataPort, AgentDataTools, PHMDataRepository
+
+repository = PHMDataRepository.from_csv_directory(
+    "private_release_metadata.csv",
+    "official_csv_root",
+    source_columns=("Unnamed: 0", "time", "acc1", "acc2"),
+    value_columns=("acc1",),
+    segment_start_field="Segment_start",
+)
+with AgentDataPort(AgentDataTools(repository, 8192)) as data:
+    window = data.read_window(
+        {"sample_id": "opaque-segment", "start": 0, "end": 8192, "channels": [0]}
+    )
+```
+
+This is a bounded, read-only benchmark path rather than a second configuration
+backend: it is not selected by `connect()` or `PHM_DATA_CONFIG`, and DataPort
+public projections still remove the private file mapping, segment offset, and
+target fields. IoTDB remains the default runtime and live-service path.
+
 ## Not in the v0.2 contract (Internal / Admin / deferred)
 
 | Symbol | Tier | Notes |

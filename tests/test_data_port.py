@@ -97,6 +97,7 @@ def test_public_search_and_description_strip_private_target_fields(repository):
     assert PRIVATE_SAMPLE_FIELDS.isdisjoint(result[0])
     assert PRIVATE_SAMPLE_FIELDS.isdisjoint(description)
     assert description["signal_available"] is True
+    assert description["stored_shape"] == [12, 2]
     with pytest.raises(ValueError, match="unsupported public search fields"):
         port.search_samples({"label": 0}, limit=1)
 

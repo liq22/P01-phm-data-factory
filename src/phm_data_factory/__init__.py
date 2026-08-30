@@ -8,7 +8,7 @@ from .identity import build_dataset_identity, load_dataset_identity
 from .metadata import MetadataAccessor, MetadataCatalog, read_metadata, smart_read_csv
 from .models import SampleMetadata, SignalWindow
 from .repository import PHMDataRepository
-from .stores import SignalStore, WritableSignalStore
+from .stores import DirectoryCSVSignalStore, SignalStore, WritableSignalStore
 
 __version__ = PACKAGE_VERSION
 __all__ = [
@@ -34,6 +34,7 @@ __all__ = [
     "H5SignalStore",
     "SignalStore",
     "WritableSignalStore",
+    "DirectoryCSVSignalStore",
 ]
 
 
