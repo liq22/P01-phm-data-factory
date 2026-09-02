@@ -171,8 +171,17 @@ failed_sample_ids
 若要把真实 IoTDB 读数纳入测试，可在已导入数据后运行：
 
 ```bash
-PHM_IOTDB_LIVE=1 pytest -q tests/test_iotdb_live.py
+PHM_IOTDB_LIVE=1 pytest -q -s \
+  --junitxml=/tmp/phm-data-factory-w2-iotdb-live.xml \
+  tests/test_iotdb_live.py
 ```
+
+其中 six-method gate 不会回退到 local backend；它顺序观测
+`connect -> manifest -> search -> describe -> exact read_window -> summarize ->
+open_stream -> 3 x monotonic next -> explicit close`。各阶段延迟以
+`w2_iotdb_latency_ms` 同时写入 stdout 和 JUnit XML property。只有该
+live gate 真实通过后，才能声称 `local_and_simple_iotdb_paths_observed`；
+skip 或单元测试通过都不是 live-IoTDB 证据。
 
 ---
 
