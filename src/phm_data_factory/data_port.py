@@ -173,6 +173,22 @@ def _channel_index(value: Any) -> int:
     return channel
 
 
+def _stream_position(value: Any) -> int:
+    if isinstance(value, bool):
+        raise ValueError("stream watermark must be a canonical integer position")
+    if isinstance(value, int):
+        return value
+    if isinstance(value, str):
+        try:
+            position = int(value)
+        except ValueError:
+            pass
+        else:
+            if str(position) == value:
+                return position
+    raise ValueError("stream watermark must be a canonical integer position")
+
+
 class StreamCursor:
     """Read contiguous bounded windows without exposing future samples."""
 
@@ -599,10 +615,7 @@ class AgentDataPort:
         ):
             raise ValueError("max_points must be a positive integer")
         watermark = request.get("watermark")
-        try:
-            start = 0 if watermark is None else int(watermark)
-        except (TypeError, ValueError):
-            raise ValueError("stream watermark must be an integer position") from None
+        start = 0 if watermark is None else _stream_position(watermark)
         raw_channels = request.get("channels", ())
         if isinstance(raw_channels, (str, bytes)) or not isinstance(
             raw_channels, Sequence

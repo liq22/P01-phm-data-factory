@@ -161,6 +161,26 @@ def test_exact_window_artifact_summary_and_monotonic_stream(repository):
         resumed.next()
 
 
+@pytest.mark.parametrize(
+    "watermark",
+    [True, False, 1.0, 1.9, "1.0", " 1", "+1", "01", "-0", ""],
+)
+def test_stream_watermark_rejects_lossy_or_noncanonical_positions(
+    repository, watermark
+):
+    port = _port(repository, max_points=5)
+
+    with pytest.raises(ValueError, match="canonical integer position"):
+        port.open_stream(
+            {
+                "stream_id": "1",
+                "channels": [0],
+                "max_points": 5,
+                "watermark": watermark,
+            }
+        )
+
+
 def test_registered_stream_is_opaque_and_releases_full_records_in_order(repository):
     port = _registered_port(repository)
 
