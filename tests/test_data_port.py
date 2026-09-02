@@ -161,6 +161,78 @@ def test_exact_window_artifact_summary_and_monotonic_stream(repository):
         resumed.next()
 
 
+def test_exact_window_rejects_short_provider_rows_without_advancing_state(
+    repository, monkeypatch
+):
+    port = _port(repository, max_points=5)
+    original = port._tools.get_signal_window
+
+    def short_window(*args, **kwargs):
+        result = original(*args, **kwargs)
+        result["values"] = result["values"][:-1]
+        result["shape"] = [len(result["values"]), len(result["channels"])]
+        return result
+
+    monkeypatch.setattr(port._tools, "get_signal_window", short_window)
+
+    request = {
+        "sample_id": "1",
+        "start": 0,
+        "end": 5,
+        "channels": [0],
+        "max_points": 5,
+    }
+    with pytest.raises(ValueError, match="exact requested window"):
+        port.read_window(request)
+
+    cursor = port.open_stream(
+        {"stream_id": "1", "channels": [0], "max_points": 5}
+    )
+    with pytest.raises(ValueError, match="exact requested window"):
+        cursor.next()
+    assert cursor.position == "0"
+
+    monkeypatch.setattr(port._tools, "get_signal_window", original)
+    artifact = port.read_window(request)
+    assert artifact["artifact_ref"] == "artifact://window/000001"
+    first = cursor.next()
+    assert first is not None
+    assert first["position"] == "5"
+
+
+@pytest.mark.parametrize(
+    "mutation",
+    [
+        lambda result: result.update(shape=[5, 2]),
+        lambda result: result.update(channels=[1]),
+        lambda result: result["values"].__setitem__(0, [0.0, 1.0]),
+    ],
+)
+def test_exact_window_rejects_channel_shape_or_value_width_drift(
+    repository, monkeypatch, mutation
+):
+    port = _port(repository, max_points=5)
+    original = port._tools.get_signal_window
+
+    def drifted_window(*args, **kwargs):
+        result = original(*args, **kwargs)
+        mutation(result)
+        return result
+
+    monkeypatch.setattr(port._tools, "get_signal_window", drifted_window)
+
+    with pytest.raises(ValueError, match="exact requested window"):
+        port.read_window(
+            {
+                "sample_id": "1",
+                "start": 0,
+                "end": 5,
+                "channels": [0],
+                "max_points": 5,
+            }
+        )
+
+
 @pytest.mark.parametrize(
     "watermark",
     [True, False, 1.0, 1.9, "1.0", " 1", "+1", "01", "-0", ""],

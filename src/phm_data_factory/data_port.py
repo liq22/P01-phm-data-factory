@@ -493,6 +493,22 @@ class AgentDataPort:
         )
         if raw.get("start") != start or raw.get("end") != end or raw.get("step") != 1:
             raise ValueError("provider did not return the exact requested window")
+        returned_channels = raw.get("channels")
+        if not isinstance(returned_channels, list) or not returned_channels:
+            raise ValueError("provider did not return the exact requested window")
+        if channels is not None and returned_channels != list(channels):
+            raise ValueError("provider did not return the exact requested window")
+        expected_shape = [end - start, len(returned_channels)]
+        if raw.get("shape") != expected_shape:
+            raise ValueError("provider did not return the exact requested window")
+        values = raw.get("values")
+        if not isinstance(values, list) or len(values) != expected_shape[0]:
+            raise ValueError("provider did not return the exact requested window")
+        if any(
+            not isinstance(row, list) or len(row) != expected_shape[1]
+            for row in values
+        ):
+            raise ValueError("provider did not return the exact requested window")
         artifact_ref = f"artifact://window/{self._next_artifact:06d}"
         self._next_artifact += 1
         artifact = dict(raw)
