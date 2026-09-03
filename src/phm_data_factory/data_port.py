@@ -321,6 +321,7 @@ class AgentDataPort:
         registered_streams: Mapping[str, Sequence[Mapping[str, Any]]] | None = None,
     ) -> None:
         self._tools = tools
+        self._closed = False
         self._backend_kind = _backend_kind(tools)
         self._registered_streams = _freeze_registered_streams(registered_streams)
         self._public_members = {
@@ -343,7 +344,12 @@ class AgentDataPort:
     def backend_kind(self) -> str:
         return self._backend_kind
 
+    def _require_open(self) -> None:
+        if self._closed:
+            raise ValueError("data port is closed")
+
     def manifest(self) -> dict[str, Any]:
+        self._require_open()
         return {
             "provider": "phm-data-factory",
             "package_version": PACKAGE_VERSION,
@@ -366,6 +372,7 @@ class AgentDataPort:
     def search_samples(
         self, query: Mapping[str, Any], limit: int
     ) -> list[dict[str, Any]]:
+        self._require_open()
         if not isinstance(query, Mapping):
             raise ValueError("query must be a mapping")
         unknown = set(query) - _SEARCH_FIELDS
@@ -418,6 +425,7 @@ class AgentDataPort:
         return [_public_sample(row) for row in rows[:limit]]
 
     def describe_sample(self, sample_id: str) -> dict[str, Any]:
+        self._require_open()
         if not isinstance(sample_id, str) or not sample_id:
             raise ValueError("sample_id must be a non-empty string")
         source_sample_id = self._resolve_public_sample_id(sample_id)
@@ -427,6 +435,7 @@ class AgentDataPort:
         return public
 
     def read_window(self, request: Mapping[str, Any]) -> dict[str, Any]:
+        self._require_open()
         if not isinstance(request, Mapping):
             raise ValueError("window request must be a mapping")
         unknown = set(request) - _WINDOW_FIELDS
@@ -576,6 +585,7 @@ class AgentDataPort:
             self._released_stream_positions[stream_id] = released_position + 1
 
     def summarize_window(self, artifact_ref: str) -> dict[str, Any]:
+        self._require_open()
         if not isinstance(artifact_ref, str) or not artifact_ref:
             raise ValueError("artifact_ref must be a non-empty string")
         try:
@@ -615,6 +625,7 @@ class AgentDataPort:
         }
 
     def open_stream(self, request: Mapping[str, Any]) -> StreamCursor:
+        self._require_open()
         if not isinstance(request, Mapping):
             raise ValueError("stream request must be a mapping")
         unknown = set(request) - _STREAM_FIELDS
@@ -691,6 +702,9 @@ class AgentDataPort:
         self._cursors.discard(cursor)
 
     def close(self) -> None:
+        if self._closed:
+            return
+        self._closed = True
         for cursor in tuple(self._cursors):
             cursor._close_from_port()
         self._cursors.clear()

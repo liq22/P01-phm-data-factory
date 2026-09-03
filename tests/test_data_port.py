@@ -161,6 +161,49 @@ def test_exact_window_artifact_summary_and_monotonic_stream(repository):
         resumed.next()
 
 
+def test_port_close_is_idempotent_and_terminal(repository):
+    port = _port(repository, max_points=5)
+    artifact = port.read_window(
+        {
+            "sample_id": "1",
+            "start": 0,
+            "end": 5,
+            "channels": [0],
+            "max_points": 5,
+        }
+    )
+    cursor = port.open_stream(
+        {"stream_id": "1", "channels": [0], "max_points": 5}
+    )
+
+    port.close()
+    port.close()
+
+    with pytest.raises(ValueError, match="stream cursor is closed"):
+        cursor.next()
+    closed_operations = (
+        port.manifest,
+        lambda: port.search_samples({}, limit=1),
+        lambda: port.describe_sample("1"),
+        lambda: port.read_window(
+            {
+                "sample_id": "1",
+                "start": 0,
+                "end": 5,
+                "channels": [0],
+                "max_points": 5,
+            }
+        ),
+        lambda: port.summarize_window(artifact["artifact_ref"]),
+        lambda: port.open_stream(
+            {"stream_id": "1", "channels": [0], "max_points": 5}
+        ),
+    )
+    for operation in closed_operations:
+        with pytest.raises(ValueError, match="data port is closed"):
+            operation()
+
+
 def test_exact_window_rejects_short_provider_rows_without_advancing_state(
     repository, monkeypatch
 ):

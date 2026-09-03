@@ -87,6 +87,11 @@ The DataPort manifest advertises `stream_cursor=true`. Registered replay
 streams release opaque sample IDs in order; search and reads expose only
 members already released by the cursor.
 
+`AgentDataPort.close()` is idempotent and terminal for that port session. It
+closes active cursors, clears session-local artifacts, closes the wrapped
+repository, and makes every subsequent public DataPort operation fail instead
+of silently reopening the backend.
+
 ### Explicit read-only CSV release
 
 Datasets distributed as one CSV per measurement record may use the explicit
