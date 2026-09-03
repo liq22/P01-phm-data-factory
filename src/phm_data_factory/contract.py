@@ -5,7 +5,7 @@ from __future__ import annotations
 from copy import deepcopy
 from typing import Any
 
-PACKAGE_VERSION = "0.2.0"
+PACKAGE_VERSION = "0.2.1"
 API_SCHEMA_VERSION = "1.0.0"
 CAPABILITY_SCHEMA_VERSION = "1.0.0"
 

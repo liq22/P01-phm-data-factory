@@ -1,8 +1,10 @@
 from .base import SignalStore, WritableSignalStore
+from .csv import DirectoryCSVSignalStore
 
 __all__ = [
     "SignalStore",
     "WritableSignalStore",
+    "DirectoryCSVSignalStore",
     "H5SignalStore",
     "DirectoryH5SignalStore",
     "H5DataDict",

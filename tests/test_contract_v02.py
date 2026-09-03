@@ -33,7 +33,7 @@ def test_agent_manifest_supports_static_and_concrete_runtime(repository):
         dataset_digest="sha256:fixture",
     )
     runtime = tools.manifest()
-    assert runtime["package_version"] == "0.2.0"
+    assert runtime["package_version"] == "0.2.1"
     assert runtime["backend_kind"] == "local_hdf5"
     assert runtime["dataset_digest"] == "sha256:fixture"
     assert (

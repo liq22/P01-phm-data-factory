@@ -19,6 +19,8 @@ _PUBLIC_SAMPLE_FIELDS = {
     "time_basis",
     "unit",
     "modality",
+    "signal_available",
+    "stored_shape",
     "metadata_digest",
 }
 

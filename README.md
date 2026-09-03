@@ -10,7 +10,11 @@
 `phm-data-factory` 负责：IoTDB 元数据查找、信号随机访问、样本验证、JSON CLI、只读 Agent 工具。
 PHM-Vibench 保留：数据集切分、PyTorch Dataset/DataLoader、任务策略、模型、训练器。
 
-Legacy `metadata.xlsx/CSV + HDF5` 仅用于一次性迁移进 IoTDB。
+Legacy `metadata.xlsx + HDF5` 默认仅用于一次性迁移进 IoTDB。
+Package 0.2.1 另提供显式构造的、只读的
+`PHMDataRepository.from_csv_directory(...)`，用于官方数据以“每条记录一个
+CSV”发布的 bounded benchmark episode。它不进入默认配置链，不代替
+IoTDB 运行主线，也不向 Agent 暴露本地路径、segment offset 或私有标签。
 
 ## 我该看哪个入口
 
